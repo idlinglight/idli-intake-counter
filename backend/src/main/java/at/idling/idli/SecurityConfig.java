@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -40,11 +41,25 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		// Programmatic clients (curl, tests) authenticate per request via HTTP
-		// Basic and carry no ambient cookie authority, so CSRF does not apply.
-		RequestMatcher basicAuthRequest = request -> {
+		// Basic and carry no ambient cookie authority — but that premise must
+		// hold by construction, not by comment: the exemption applies only when
+		// NO session exists. A request carrying both a live session cookie and
+		// a Basic header still needs the CSRF token.
+		RequestMatcher statelessBasicRequest = request -> {
 			String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-			return authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6);
+			boolean basic = authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6);
+			return basic && request.getSession(false) == null;
 		};
+
+		// The login POST authenticates via the password in its body, not via
+		// ambient cookie authority, so CSRF adds nothing here — and with a
+		// single account, "login CSRF" gains an attacker nothing. Exempting it
+		// also keeps the post-logout re-login unambiguous: a missing token
+		// would otherwise surface as 401 (anonymous denials go through the
+		// entry point), indistinguishable from a wrong password for the SPA.
+		// Logout stays CSRF-protected (forced-logout nuisance otherwise).
+		RequestMatcher loginRequest = request -> "POST".equals(request.getMethod())
+				&& "/api/auth/login".equals(request.getRequestURI());
 
 		http
 				.authorizeHttpRequests(authorize -> authorize
@@ -59,8 +74,13 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf
 						.spa()
 						.requireCsrfProtectionMatcher(new AndRequestMatcher(
-								CsrfFilter.DEFAULT_CSRF_MATCHER, new NegatedRequestMatcher(basicAuthRequest))))
+								CsrfFilter.DEFAULT_CSRF_MATCHER, new NegatedRequestMatcher(statelessBasicRequest),
+								new NegatedRequestMatcher(loginRequest))))
 				.httpBasic(Customizer.withDefaults())
+				// This API answers unauthenticated requests with a bare 401 and never
+				// replays a saved request; the default RequestCache would create a
+				// session for every anonymous hit on a protected endpoint.
+				.requestCache(cache -> cache.requestCache(new NullRequestCache()))
 				// Session login for the SPA: plain status codes, no redirects.
 				.formLogin(login -> login
 						.loginProcessingUrl("/api/auth/login")

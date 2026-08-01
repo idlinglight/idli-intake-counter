@@ -21,13 +21,17 @@ single-user login; items/portions are next (see [docs/DESIGN.md](docs/DESIGN.md)
 
 ## Development
 
-Backend (auto-starts Postgres 17 via Docker compose integration):
+Backend (needs Docker):
 
 ```sh
 cd backend
-./mvnw spring-boot:run   # API on :8080
-./mvnw verify            # tests (needs Docker for Testcontainers)
+./mvnw spring-boot:test-run   # API on :8080, Testcontainers Postgres,
+                              # dev login password: idli-test-password
+./mvnw verify                 # tests
 ```
+
+(`spring-boot:run` — the compose-based variant — additionally needs
+`IDLI_AUTH_PASSWORD_HASH` exported; mint one with `scripts/mint-auth-hash.sh`.)
 
 Frontend (dev server proxies `/api` to `:8080`):
 

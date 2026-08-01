@@ -107,21 +107,67 @@ describe('auth store', () => {
     expect(store.authenticated).toBe(false)
   })
 
-  it('logout() posts with the CSRF header and clears authenticated', async () => {
-    getMock.mockResolvedValue({ data: { authenticated: true } })
+  it('logout() posts with the CSRF header, clears authenticated and re-checks', async () => {
+    getMock.mockResolvedValueOnce({ data: { authenticated: true } })
     const store = useAuthStore()
     await store.check()
     expect(store.authenticated).toBe(true)
 
     document.cookie = 'XSRF-TOKEN=csrf-2'
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
-    await store.logout()
+    getMock.mockResolvedValueOnce({ data: { authenticated: false } })
+    const result = await store.logout()
 
+    expect(result).toBe(true)
     expect(store.authenticated).toBe(false)
     const { url, init } = loginCall(0)
     expect(url).toBe('/api/auth/logout')
     expect(init.method).toBe('POST')
     expect(new Headers(init.headers).get('X-XSRF-TOKEN')).toBe('csrf-2')
+    // The re-check GET makes the server issue a fresh XSRF cookie for the
+    // next login POST (logout deleted the old one).
+    expect(getMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('logout() keeps authenticated when the server rejects the logout', async () => {
+    getMock.mockResolvedValueOnce({ data: { authenticated: true } })
+    const store = useAuthStore()
+    await store.check()
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 502 }))
+    const result = await store.logout()
+
+    // The server-side session may still be alive: do not pretend.
+    expect(result).toBe(false)
+    expect(store.authenticated).toBe(true)
+    expect(getMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('logout() keeps authenticated when the backend is unreachable', async () => {
+    getMock.mockResolvedValueOnce({ data: { authenticated: true } })
+    const store = useAuthStore()
+    await store.check()
+
+    fetchMock.mockRejectedValue(new Error('network down'))
+    const result = await store.logout()
+
+    expect(result).toBe(false)
+    expect(store.authenticated).toBe(true)
+  })
+
+  it('login() works without any CSRF cookie (post-logout state)', async () => {
+    // Login is CSRF-exempt server-side; with no cookie present the POST
+    // simply carries no token header and still succeeds first try.
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+    getMock.mockResolvedValue({ data: { authenticated: true } })
+    const store = useAuthStore()
+
+    const result = await store.login('hunter2')
+
+    expect(result).toBe('ok')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(new Headers(loginCall(0).init.headers).get('X-XSRF-TOKEN')).toBeNull()
+    expect(store.authenticated).toBe(true)
   })
 
   it('registers a 401 handler that flips the store to unauthenticated', async () => {

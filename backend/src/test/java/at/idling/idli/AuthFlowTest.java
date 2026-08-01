@@ -125,6 +125,78 @@ class AuthFlowTest {
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 	}
 
+	@Test
+	void reloginAfterLogoutNeedsNoCsrfToken() {
+		Map<String, String> cookies = new LinkedHashMap<>();
+		assertThat(formLogin(cookies, TestAuth.PASSWORD).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+		assertThat(post("/api/auth/logout", null, cookies, true, Void.class).getStatusCode())
+				.isEqualTo(HttpStatus.NO_CONTENT);
+		// Logout deleted the XSRF-TOKEN cookie (CsrfLogoutHandler) ...
+		assertThat(cookies).doesNotContainKey(XSRF_COOKIE);
+
+		// ... but login is CSRF-exempt (it authenticates via the password in
+		// its body), so the immediate re-login works on the first attempt.
+		assertThat(formLoginWithoutPrefetch(cookies, TestAuth.PASSWORD).getStatusCode())
+				.isEqualTo(HttpStatus.NO_CONTENT);
+		assertThat(sessionStatus(cookies)).isTrue();
+	}
+
+	@Test
+	void logoutStaysCsrfProtected() {
+		Map<String, String> cookies = new LinkedHashMap<>();
+		assertThat(formLogin(cookies, TestAuth.PASSWORD).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+		sessionStatus(cookies);
+
+		// The login exemption must not bleed into logout: without the token
+		// a cross-site page could force-logout the user.
+		ResponseEntity<Void> withoutToken = post("/api/auth/logout", null, cookies, false, Void.class);
+		assertThat(withoutToken.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+		assertThat(sessionStatus(cookies)).isTrue();
+	}
+
+	@Test
+	void sessionPlusBasicHeaderStillRequiresTheCsrfToken() {
+		Map<String, String> cookies = new LinkedHashMap<>();
+		assertThat(formLogin(cookies, TestAuth.PASSWORD).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+		// Re-issue the rotated token cookie so only the exemption is under test.
+		sessionStatus(cookies);
+
+		// A live session must not smuggle mutations past CSRF by adding a
+		// Basic header: the exemption is scoped to session-less requests.
+		HttpHeaders headers = cookieHeaders(cookies, false);
+		headers.setBasicAuth(TestAuth.USERNAME, TestAuth.PASSWORD);
+		ResponseEntity<String> response = restTemplate.exchange("/api/entries", HttpMethod.POST,
+				new HttpEntity<>(new NewEntryRequest(waterMetricId(), 100L, null), headers), String.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+	}
+
+	@Test
+	void sessionCookieCarriesSecureAndMaxAge() {
+		Map<String, String> cookies = new LinkedHashMap<>();
+		ResponseEntity<Void> login = formLogin(cookies, TestAuth.PASSWORD);
+
+		String sessionSetCookie = login.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
+				.filter(cookie -> cookie.startsWith("JSESSIONID="))
+				.findFirst()
+				.orElseThrow();
+		// Secure is static config (Tomcat bypasses the forwarded-header
+		// wrapper for the session cookie); Max-Age makes it survive browser
+		// eviction for the 30d server-session lifetime.
+		assertThat(sessionSetCookie).contains("Secure");
+		assertThat(sessionSetCookie).contains("Max-Age=2592000");
+	}
+
+	@Test
+	void anonymousRejectionCreatesNoSession() {
+		ResponseEntity<Void> response = restTemplate.getForEntity("/api/days/today", Void.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+		// NullRequestCache: a bare 401 must not allocate a server session.
+		assertThat(response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE))
+				.noneMatch(cookie -> cookie.startsWith("JSESSIONID="));
+	}
+
 	private boolean sessionStatus(Map<String, String> cookies) {
 		ResponseEntity<SessionDto> response = get("/api/auth/session", cookies, SessionDto.class);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -136,7 +208,10 @@ class AuthFlowTest {
 		// The login POST is itself CSRF-protected: fetch the XSRF-TOKEN cookie
 		// first, exactly like the SPA does.
 		sessionStatus(cookies);
+		return formLoginWithoutPrefetch(cookies, password);
+	}
 
+	private ResponseEntity<Void> formLoginWithoutPrefetch(Map<String, String> cookies, String password) {
 		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
 		form.add("username", TestAuth.USERNAME);
 		form.add("password", password);

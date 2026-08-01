@@ -16,7 +16,9 @@ idli:
 
 server:
   # TLS terminates at the ingress. "framework" applies X-Forwarded-* so
-  # request.isSecure() is true behind HTTPS and cookies get the Secure flag.
+  # request.isSecure() is correct behind HTTPS. NOTE: the session cookie's
+  # Secure flag is NOT derived from that — Tomcat builds JSESSIONID from the
+  # raw connector request — hence the static cookie.secure below.
   forward-headers-strategy: framework
   servlet:
     session:
@@ -26,6 +28,14 @@ server:
       cookie:
         http-only: true
         same-site: lax
+        # Static because Tomcat bypasses the forwarded-header wrapper here.
+        # Localhost counts as a trustworthy origin, so local dev over http
+        # keeps working.
+        secure: true
+        # Without max-age the browser may drop the cookie on close/eviction
+        # long before the 30d server session expires — the phone would ask
+        # for the password every morning.
+        max-age: 30d
 
 management:
   endpoint:

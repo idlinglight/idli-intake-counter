@@ -6,10 +6,10 @@ import { readCookie, XSRF_COOKIE, XSRF_HEADER } from '@/api/csrf'
 export type LoginResult = 'ok' | 'wrong-password' | 'unreachable'
 
 /**
- * Login/logout are filter-based endpoints outside the OpenAPI contract
- * (documented exception), hence this small hand-written fetch instead of the
- * typed client. The CSRF token is read from the cookie per request because
- * the backend rotates it on login.
+ * Login/logout are filter-based endpoints outside the OpenAPI contract —
+ * the deliberate exception recorded in ADR-0006's amendment — hence this
+ * small hand-written fetch instead of the typed client. The CSRF token is
+ * read from the cookie per request because the backend rotates it on login.
  */
 async function postForm(path: string, form?: Record<string, string>): Promise<Response> {
   const headers: Record<string, string> = {}
@@ -55,7 +55,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(password: string): Promise<LoginResult> {
     let response: Response
     try {
-      // The username is fixed server-side; the UI only ever asks for a password.
+      // The username is fixed server-side; the UI only ever asks for a
+      // password. The login POST is CSRF-exempt server-side (it carries the
+      // password itself), so a 401 here always means: wrong password.
       response = await postForm('/api/auth/login', { username: 'user', password })
     } catch {
       return 'unreachable'
@@ -73,13 +75,23 @@ export const useAuthStore = defineStore('auth', () => {
     return 'ok'
   }
 
-  async function logout(): Promise<void> {
+  async function logout(): Promise<boolean> {
+    let response: Response
     try {
-      await postForm('/api/auth/logout')
+      response = await postForm('/api/auth/logout')
     } catch {
-      // Even if the server cannot be reached, the local session ends.
+      // Server unreachable: the server-side session may still be alive —
+      // do NOT pretend the logout took.
+      return false
+    }
+    if (!response.ok) {
+      return false
     }
     authenticated.value = false
+    // Logout deleted the XSRF-TOKEN cookie; this GET makes the server issue
+    // a fresh one so the next login POST has a token to send.
+    await check()
+    return true
   }
 
   return { checked, authenticated, check, login, logout }
