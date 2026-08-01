@@ -14,10 +14,6 @@
       }
     }
   },
-  "info": {
-    "title": "OpenAPI definition",
-    "version": "v0"
-  },
   "openapi": "3.1.0",
   "paths": {
     "/api/hello": {
@@ -43,8 +39,7 @@
   },
   "servers": [
     {
-      "description": "Generated server url",
-      "url": "http://localhost:63517"
+      "url": "/"
     }
   ]
 }
