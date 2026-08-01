@@ -1,0 +1,11 @@
+# Local development database only. Auto-started by spring-boot-docker-compose
+# when running ./mvnw spring-boot:run. Not used in tests (Testcontainers) or prod.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: idli
+      POSTGRES_USER: idli
+      POSTGRES_PASSWORD: idli-dev-only
+    ports:
+      - "5432"

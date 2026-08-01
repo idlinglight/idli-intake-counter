@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: idli-backend
+  # Datasource credentials are intentionally not hardcoded here.
+  # Local dev: spring-boot-docker-compose picks them up from compose.yaml.
+  # Tests: Testcontainers provides them via @ServiceConnection.
+  # Production: supply SPRING_DATASOURCE_URL/USERNAME/PASSWORD via environment.
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
