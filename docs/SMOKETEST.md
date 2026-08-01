@@ -35,6 +35,16 @@ The 401 is itself a smoke assertion: data endpoints must NOT be reachable
 anonymously. The second request (HTTP Basic, fixed username `user`) proves
 routing, database, *and* the deployed credential in one go.
 
+## 2c. The backup gesture works (images with export/import)
+
+```sh
+curl -fsS -u user:$PW https://<host>/api/export -o idli-export.json
+```
+
+Export **is** the backup strategy (ADR-0004) — a release where it fails has no
+recovery story, which makes this one request part of the smoke, not monitoring.
+Bonus: running it at every deploy leaves you with an actual backup file.
+
 ## 3. Frontend, through the ingress
 
 ```sh

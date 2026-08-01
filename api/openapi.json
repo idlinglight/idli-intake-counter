@@ -43,6 +43,75 @@
         },
         "type": "object"
       },
+      "ExportDto": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ExportEntryDto"
+            },
+            "type": "array"
+          },
+          "exportedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "formatVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/ExportMetricDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "formatVersion",
+          "metrics"
+        ],
+        "type": "object"
+      },
+      "ExportEntryDto": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metric": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "loggedAt",
+          "metric"
+        ],
+        "type": "object"
+      },
+      "ExportMetricDto": {
+        "properties": {
+          "canonicalUnit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "canonicalUnit",
+          "name"
+        ],
+        "type": "object"
+      },
       "HelloResponse": {
         "properties": {
           "gitSha": {
@@ -50,6 +119,19 @@
           },
           "message": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImportSummaryDto": {
+        "properties": {
+          "entries": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "metrics": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -246,6 +328,26 @@
         ]
       }
     },
+    "/api/export": {
+      "get": {
+        "operationId": "export",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "export-import-controller"
+        ]
+      }
+    },
     "/api/hello": {
       "get": {
         "operationId": "hello",
@@ -263,6 +365,46 @@
         },
         "tags": [
           "hello-controller"
+        ]
+      }
+    },
+    "/api/import": {
+      "post": {
+        "operationId": "importData",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummaryDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "export-import-controller"
         ]
       }
     },

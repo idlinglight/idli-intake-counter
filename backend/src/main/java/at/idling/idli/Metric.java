@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 /**
  * A user-defined metric (water, energy, …). Amounts are always stored in the
  * metric's canonical unit (ADR-0002); the backend never converts units.
- * Rows are currently seeded by migration only, so this entity is read-only.
+ * Rows are seeded by migration and recreated by import (ADR-0004).
  */
 @Entity
 public class Metric {
@@ -22,6 +22,11 @@ public class Metric {
 	private String canonicalUnit;
 
 	protected Metric() {
+	}
+
+	public Metric(String name, String canonicalUnit) {
+		this.name = name;
+		this.canonicalUnit = canonicalUnit;
 	}
 
 	public Long getId() {
