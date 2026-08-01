@@ -5,6 +5,10 @@ metadata:
   name: {{ include "idli.fullname" . }}
   labels:
     {{- include "idli.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . }}

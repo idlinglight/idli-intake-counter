@@ -31,6 +31,9 @@ ingress:
   enabled: true
   # Empty string = cluster default ingress class.
   className: ""
+  # Passed through verbatim onto the Ingress — e.g. for cert-manager
+  # issuer annotations; the chart itself stays controller-agnostic.
+  annotations: {}
   host: idli.localtest.me
   # Optional list of ingress TLS blocks, passed through verbatim.
   tls: []
