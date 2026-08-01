@@ -9,6 +9,23 @@ spring:
 idli:
   # Timezone that defines the day boundary for /api/days/{date}.
   zone: Europe/Vienna
+  # idli.auth.password-hash (env IDLI_AUTH_PASSWORD_HASH) intentionally has no
+  # default here: like the datasource credentials, the app must fail to start
+  # without it. Value is the bare bcrypt hash of the single login password
+  # (ADR-0005); mint one with scripts/mint-auth-hash.sh.
+
+server:
+  # TLS terminates at the ingress. "framework" applies X-Forwarded-* so
+  # request.isSecure() is true behind HTTPS and cookies get the Secure flag.
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      # Sessions live in memory: a redeploy logs the user out (accepted v1
+      # behavior). Long idle timeout so the single user stays logged in.
+      timeout: 30d
+      cookie:
+        http-only: true
+        same-site: lax
 
 management:
   endpoint:

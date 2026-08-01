@@ -1,11 +1,17 @@
 {{- /* Fail at render time, not as a CrashLoopBackOff at rollout: the backend
-     hard-requires a datasource since chart 0.4.0. */}}
+     hard-requires a datasource (since 0.4.0) and its login credential
+     (since 0.5.0). */}}
 {{- $hasDatasource := false }}
+{{- $hasAuth := false }}
 {{- range .Values.backend.env }}
 {{- if eq .name "SPRING_DATASOURCE_URL" }}{{- $hasDatasource = true }}{{- end }}
+{{- if eq .name "IDLI_AUTH_PASSWORD_HASH" }}{{- $hasAuth = true }}{{- end }}
 {{- end }}
 {{- if not $hasDatasource }}
 {{- fail "backend.env must include SPRING_DATASOURCE_URL (plus USERNAME/PASSWORD; see values.yaml) — the backend requires a database since chart 0.4.0" }}
+{{- end }}
+{{- if not $hasAuth }}
+{{- fail "backend.env must include IDLI_AUTH_PASSWORD_HASH (bcrypt; see values.yaml and scripts/mint-auth-hash.sh) — the backend requires its login credential since chart 0.5.0" }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
