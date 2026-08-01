@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 @Import(TestcontainersConfiguration.class)
@@ -43,6 +44,18 @@ class WaterLoggingFlowTest {
 			assertThat(metric.name()).isEqualTo("water");
 			assertThat(metric.canonicalUnit()).isEqualTo("mL");
 		});
+	}
+
+	@Test
+	void todayEndpointResolvesTheDateInTheConfiguredZone() {
+		LocalDate before = LocalDate.now(ZoneId.of("Europe/Vienna"));
+		ResponseEntity<DayViewDto> response = restTemplate.getForEntity("/api/days/today", DayViewDto.class);
+		LocalDate after = LocalDate.now(ZoneId.of("Europe/Vienna"));
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(response.getBody()).isNotNull();
+		// before/after bracket tolerates a midnight rollover during the call
+		assertThat(response.getBody().date()).isIn(before, after);
 	}
 
 	@Test

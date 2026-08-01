@@ -2,38 +2,43 @@
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
-import { formatVolume } from '@/utils/volume'
+import { formatAmount } from '@/utils/format'
 
 type DayView = components['schemas']['DayViewDto']
+type Metric = components['schemas']['MetricDto']
 
 const quickAmounts = [250, 500, 1000]
 
-const waterMetricId = ref<number | null>(null)
+const waterMetric = ref<Metric | null>(null)
 const day = ref<DayView | null>(null)
 const error = ref('')
 
-/** Today as a local-time YYYY-MM-DD string. */
-function todayLocalDate(): string {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const dayOfMonth = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${dayOfMonth}`
-}
+const waterUnit = computed(() => waterMetric.value?.canonicalUnit ?? 'mL')
 
 const waterEntries = computed(() =>
-  (day.value?.entries ?? []).filter((entry) => entry.metricId === waterMetricId.value),
+  (day.value?.entries ?? []).filter((entry) => entry.metricId === waterMetric.value?.id),
 )
 
 const waterTotal = computed(
   () =>
-    (day.value?.totals ?? []).find((total) => total.metricId === waterMetricId.value)?.total ?? 0,
+    (day.value?.totals ?? []).find((total) => total.metricId === waterMetric.value?.id)?.total ??
+    0,
 )
 
+// The backend is the single clock: "today" is resolved server-side in the
+// configured zone, so browser and server can never disagree on the day.
+// On failure the previous day view is kept — stale data beats fake-empty data.
 async function refreshDay() {
-  const { data } = await api.GET('/api/days/{date}', {
-    params: { path: { date: todayLocalDate() } },
-  })
-  day.value = data ?? null
+  try {
+    const { data } = await api.GET('/api/days/today')
+    if (!data) {
+      error.value = 'could not load today'
+      return
+    }
+    day.value = data
+  } catch {
+    error.value = 'backend unreachable'
+  }
 }
 
 async function load() {
@@ -49,7 +54,7 @@ async function load() {
       error.value = 'no "water" metric configured'
       return
     }
-    waterMetricId.value = water.id
+    waterMetric.value = water
     await refreshDay()
   } catch {
     error.value = 'backend unreachable'
@@ -57,27 +62,40 @@ async function load() {
 }
 
 async function quickLog(amount: number) {
-  if (waterMetricId.value === null) return
+  const metricId = waterMetric.value?.id
+  if (metricId === undefined) return
   error.value = ''
   try {
-    await api.POST('/api/entries', {
-      body: { metricId: waterMetricId.value, amount },
+    const { error: postError } = await api.POST('/api/entries', {
+      body: { metricId, amount },
     })
-    await refreshDay()
+    if (postError) {
+      error.value = 'logging failed'
+      return
+    }
   } catch {
     error.value = 'backend unreachable'
+    return
   }
+  await refreshDay()
 }
 
 async function removeEntry(id: number | undefined) {
   if (id === undefined) return
   error.value = ''
   try {
-    await api.DELETE('/api/entries/{id}', { params: { path: { id } } })
-    await refreshDay()
+    const { error: deleteError } = await api.DELETE('/api/entries/{id}', {
+      params: { path: { id } },
+    })
+    if (deleteError) {
+      // Refresh anyway: a 404 means the entry is already gone server-side.
+      error.value = 'delete failed'
+    }
   } catch {
     error.value = 'backend unreachable'
+    return
   }
+  await refreshDay()
 }
 
 /** HH:MM (local time) of an entry timestamp — a pure display concern. */
@@ -96,7 +114,7 @@ onMounted(load)
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-    <p class="total" data-testid="water-total">{{ formatVolume(waterTotal) }}</p>
+    <p class="total" data-testid="water-total">{{ formatAmount(waterTotal, waterUnit) }}</p>
 
     <div class="quick-log">
       <button
@@ -104,7 +122,7 @@ onMounted(load)
         :key="amount"
         type="button"
         class="quick-log-button"
-        :disabled="waterMetricId === null"
+        :disabled="waterMetric === null"
         @click="quickLog(amount)"
       >
         +{{ amount }} mL
@@ -114,11 +132,11 @@ onMounted(load)
     <ul v-if="waterEntries.length > 0" class="entries">
       <li v-for="entry in waterEntries" :key="entry.id" class="entry">
         <span class="entry-time">{{ entryTime(entry.loggedAt) }}</span>
-        <span class="entry-amount">{{ formatVolume(entry.amount ?? 0) }}</span>
+        <span class="entry-amount">{{ formatAmount(entry.amount ?? 0, waterUnit) }}</span>
         <button
           type="button"
           class="entry-delete"
-          :aria-label="`delete ${formatVolume(entry.amount ?? 0)} at ${entryTime(entry.loggedAt)}`"
+          :aria-label="`delete ${formatAmount(entry.amount ?? 0, waterUnit)} at ${entryTime(entry.loggedAt)}`"
           @click="removeEntry(entry.id)"
         >
           &#x2715;

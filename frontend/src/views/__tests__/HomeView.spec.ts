@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import HomeView from '../HomeView.vue'
 
-type ApiResult = { data?: unknown }
+type ApiResult = { data?: unknown; error?: unknown }
 type ApiCall = (path: string, init?: unknown) => Promise<ApiResult>
 
 const { getMock, postMock, deleteMock } = vi.hoisted(() => ({
@@ -14,13 +14,6 @@ const { getMock, postMock, deleteMock } = vi.hoisted(() => ({
 vi.mock('@/api/client', () => ({
   api: { GET: getMock, POST: postMock, DELETE: deleteMock },
 }))
-
-function todayLocalDate(): string {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const dayOfMonth = String(now.getDate()).padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${dayOfMonth}`
-}
 
 const metrics = [
   { id: 7, name: 'water', canonicalUnit: 'mL' },
@@ -36,7 +29,7 @@ let dayView: {
 beforeEach(() => {
   vi.clearAllMocks()
   dayView = {
-    date: todayLocalDate(),
+    date: '2026-08-01',
     entries: [
       { id: 11, metricId: 7, amount: 500, loggedAt: '2026-08-01T08:30:00' },
       { id: 12, metricId: 7, amount: 750, loggedAt: '2026-08-01T12:05:00' },
@@ -52,14 +45,13 @@ beforeEach(() => {
 })
 
 describe('HomeView', () => {
-  it("loads the water metric and today's day view on mount", async () => {
+  it("loads the water metric and the server-resolved today on mount", async () => {
     const wrapper = mount(HomeView)
     await flushPromises()
 
     expect(getMock).toHaveBeenCalledWith('/api/metrics')
-    expect(getMock).toHaveBeenCalledWith('/api/days/{date}', {
-      params: { path: { date: todayLocalDate() } },
-    })
+    // The backend is the single clock — no client-side date computation.
+    expect(getMock).toHaveBeenCalledWith('/api/days/today')
     expect(wrapper.get('[data-testid="water-total"]').text()).toBe('1.25 L')
     expect(wrapper.text()).toContain('08:30')
     expect(wrapper.text()).toContain('500 mL')
@@ -123,5 +115,49 @@ describe('HomeView', () => {
     await flushPromises()
 
     expect(wrapper.get('.error').text()).toBe('backend unreachable')
+  })
+
+  it('surfaces a failed log instead of silently doing nothing', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    postMock.mockResolvedValue({ error: { status: 400 } })
+
+    const button = wrapper.findAll('button').find((b) => b.text() === '+250 mL')
+    await button!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.error').text()).toBe('logging failed')
+    // No refresh after a failed post; the shown day stays intact.
+    expect(getMock).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-testid="water-total"]').text()).toBe('1.25 L')
+  })
+
+  it('keeps the previous day view and shows an error when the refresh fails', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    getMock.mockImplementation(async (path: string) =>
+      path === '/api/metrics' ? { data: metrics } : { error: { status: 500 } },
+    )
+
+    const button = wrapper.findAll('button').find((b) => b.text() === '+250 mL')
+    await button!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.error').text()).toBe('could not load today')
+    // Stale data beats fake-empty data: the earlier day view is still shown.
+    expect(wrapper.get('[data-testid="water-total"]').text()).toBe('1.25 L')
+    expect(wrapper.text()).toContain('08:30')
+  })
+
+  it('surfaces a failed delete and still resyncs the day', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    deleteMock.mockResolvedValue({ error: { status: 404 } })
+
+    await wrapper.findAll('.entry-delete')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.error').text()).toBe('delete failed')
+    expect(getMock).toHaveBeenCalledTimes(3) // resync still happens
   })
 })

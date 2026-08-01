@@ -18,6 +18,13 @@ public class DayController {
 		this.intakeService = intakeService;
 	}
 
+	// The backend is the single clock: clients ask for "today" instead of
+	// computing a local date that may disagree with the configured zone.
+	@GetMapping("/days/today")
+	public DayViewDto today() {
+		return intakeService.today();
+	}
+
 	@GetMapping("/days/{date}")
 	public DayViewDto day(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 		return intakeService.day(date);

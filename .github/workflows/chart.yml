@@ -22,6 +22,9 @@ permissions:
 
 env:
   CHART_DIR: deploy/chart/idli-intake-counter
+  # The chart refuses to render without a datasource (deliberate guard);
+  # lint/template therefore inject sample values.
+  DS_VALUES: backend.env=[{"name":"SPRING_DATASOURCE_URL","value":"jdbc:postgresql://db:5432/idli"}]
 
 jobs:
   lint:
@@ -29,8 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
-      - run: helm lint "$CHART_DIR"
-      - run: helm template smoke "$CHART_DIR" > /dev/null
+      - run: helm lint "$CHART_DIR" --set-json "$DS_VALUES"
+      - run: helm template smoke "$CHART_DIR" --set-json "$DS_VALUES" > /dev/null
 
   publish:
     if: github.event_name != 'pull_request'

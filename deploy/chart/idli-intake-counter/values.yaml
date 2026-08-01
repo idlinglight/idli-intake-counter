@@ -5,7 +5,8 @@ backend:
     tag: sha-0000000
   # Environment for the backend container, passed through verbatim —
   # plain values and valueFrom/secretKeyRef entries both work. The backend
-  # requires its datasource here, credentials from an out-of-band Secret:
+  # REQUIRES its datasource here (the template fails to render without
+  # SPRING_DATASOURCE_URL), credentials from an out-of-band Secret:
   #   - name: SPRING_DATASOURCE_URL
   #     value: jdbc:postgresql://<host>:5432/idli
   #   - name: SPRING_DATASOURCE_USERNAME

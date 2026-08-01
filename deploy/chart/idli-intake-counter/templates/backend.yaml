@@ -1,3 +1,12 @@
+{{- /* Fail at render time, not as a CrashLoopBackOff at rollout: the backend
+     hard-requires a datasource since chart 0.4.0. */}}
+{{- $hasDatasource := false }}
+{{- range .Values.backend.env }}
+{{- if eq .name "SPRING_DATASOURCE_URL" }}{{- $hasDatasource = true }}{{- end }}
+{{- end }}
+{{- if not $hasDatasource }}
+{{- fail "backend.env must include SPRING_DATASOURCE_URL (plus USERNAME/PASSWORD; see values.yaml) — the backend requires a database since chart 0.4.0" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/days/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["today"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/days/{date}": {
         parameters: {
             query?: never;
@@ -139,6 +155,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    today: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DayViewDto"];
+                };
+            };
+        };
+    };
     day: {
         parameters: {
             query?: never;

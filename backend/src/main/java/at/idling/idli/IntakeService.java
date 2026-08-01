@@ -42,10 +42,13 @@ public class IntakeService {
 	}
 
 	public void delete(long entryId) {
-		if (!entryRepository.existsById(entryId)) {
+		if (entryRepository.deleteEntryById(entryId) == 0) {
 			throw new EntryNotFoundException(entryId);
 		}
-		entryRepository.deleteById(entryId);
+	}
+
+	public DayViewDto today() {
+		return day(LocalDate.now(zone));
 	}
 
 	public DayViewDto day(LocalDate date) {
