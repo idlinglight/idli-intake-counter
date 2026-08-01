@@ -5,14 +5,20 @@ backend:
     tag: sha-0000000
   # Environment for the backend container, passed through verbatim —
   # plain values and valueFrom/secretKeyRef entries both work. The backend
-  # REQUIRES its datasource here (the template fails to render without
-  # SPRING_DATASOURCE_URL), credentials from an out-of-band Secret:
+  # REQUIRES two things here or the template fails to render:
+  #   * its datasource (SPRING_DATASOURCE_URL; credentials typically from
+  #     the CNPG-minted app Secret)
+  #   * its login credential (IDLI_AUTH_PASSWORD_HASH, bcrypt — mint with
+  #     scripts/mint-auth-hash.sh; from a Secret deliberately named
+  #     distinctly from the database one, e.g. idli-auth)
   #   - name: SPRING_DATASOURCE_URL
   #     value: jdbc:postgresql://<host>:5432/idli
   #   - name: SPRING_DATASOURCE_USERNAME
-  #     valueFrom: { secretKeyRef: { name: idli-db, key: username } }
+  #     valueFrom: { secretKeyRef: { name: idli-db-app, key: username } }
   #   - name: SPRING_DATASOURCE_PASSWORD
-  #     valueFrom: { secretKeyRef: { name: idli-db, key: password } }
+  #     valueFrom: { secretKeyRef: { name: idli-db-app, key: password } }
+  #   - name: IDLI_AUTH_PASSWORD_HASH
+  #     valueFrom: { secretKeyRef: { name: idli-auth, key: password-hash } }
   env: []
   resources:
     requests:

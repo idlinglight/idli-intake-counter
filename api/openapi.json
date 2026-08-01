@@ -90,6 +90,14 @@
         ],
         "type": "object"
       },
+      "SessionDto": {
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "TotalDto": {
         "properties": {
           "canonicalUnit": {
@@ -113,6 +121,26 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/auth/session": {
+      "get": {
+        "operationId": "session",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
     "/api/days/today": {
       "get": {
         "operationId": "today",

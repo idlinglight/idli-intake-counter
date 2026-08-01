@@ -21,10 +21,12 @@ import java.nio.file.Path;
 import java.util.Map;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = TestAuth.PASSWORD_HASH_PROPERTY)
 @AutoConfigureTestRestTemplate
 class HelloEndpointTest {
 
+	// Deliberately NOT authenticated: /api/hello and /v3/api-docs are public,
+	// and these tests double as the proof.
 	@Autowired
 	private TestRestTemplate restTemplate;
 

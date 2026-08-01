@@ -21,7 +21,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = TestAuth.PASSWORD_HASH_PROPERTY)
 @AutoConfigureTestRestTemplate
 class WaterLoggingFlowTest {
 
@@ -29,8 +29,14 @@ class WaterLoggingFlowTest {
 	// The configured zone is Europe/Vienna (UTC+1 on this date).
 	private static final LocalDate DAY = LocalDate.parse("2026-03-03");
 
-	@Autowired
 	private TestRestTemplate restTemplate;
+
+	// Everything here exercises the intake API, which sits behind auth; basic
+	// auth also exempts these calls from CSRF (see SecurityConfig).
+	@Autowired
+	void setRestTemplate(TestRestTemplate restTemplate) {
+		this.restTemplate = restTemplate.withBasicAuth(TestAuth.USERNAME, TestAuth.PASSWORD);
+	}
 
 	@Test
 	void metricsListContainsWaterInMilliliters() {

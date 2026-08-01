@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["session"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/days/today": {
         parameters: {
             query?: never;
@@ -138,6 +154,9 @@ export interface components {
             /** Format: int64 */
             metricId: number;
         };
+        SessionDto: {
+            authenticated?: boolean;
+        };
         TotalDto: {
             canonicalUnit?: string;
             /** Format: int64 */
@@ -155,6 +174,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SessionDto"];
+                };
+            };
+        };
+    };
     today: {
         parameters: {
             query?: never;

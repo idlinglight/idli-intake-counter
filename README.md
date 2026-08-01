@@ -3,8 +3,8 @@
 Self-hosted intake tracker — energy, water, anything you define as a metric — built as a
 Spring Boot + Vue monorepo and deployed to k3s via a Helm chart published as an OCI artifact.
 
-**Status: early but functional.** Water logging works end to end; items/portions
-and auth are next (see [docs/DESIGN.md](docs/DESIGN.md)).
+**Status: early but functional.** Water logging works end to end behind a
+single-user login; items/portions are next (see [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Layout
 
@@ -21,13 +21,20 @@ and auth are next (see [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Development
 
-Backend (auto-starts Postgres 17 via Docker compose integration):
+Backend (needs Docker):
 
 ```sh
 cd backend
-./mvnw spring-boot:run   # API on :8080
-./mvnw verify            # tests (needs Docker for Testcontainers)
+./mvnw spring-boot:test-run   # API on :8080, Testcontainers Postgres,
+                              # dev login password: idli-test-password
+./mvnw verify                 # tests
 ```
+
+(`spring-boot:run` — the compose-based variant — additionally needs
+`IDLI_AUTH_PASSWORD_HASH` exported; mint one with `scripts/mint-auth-hash.sh`.
+It must be the bare bcrypt hash — no `{bcrypt}` prefix, no leading `:` from the
+htpasswd line — which the backend checks at startup rather than failing every
+later login.)
 
 Frontend (dev server proxies `/api` to `:8080`):
 

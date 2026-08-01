@@ -24,7 +24,7 @@ env:
   CHART_DIR: deploy/chart/idli-intake-counter
   # The chart refuses to render without a datasource (deliberate guard);
   # lint/template therefore inject sample values.
-  DS_VALUES: backend.env=[{"name":"SPRING_DATASOURCE_URL","value":"jdbc:postgresql://db:5432/idli"}]
+  DS_VALUES: backend.env=[{"name":"SPRING_DATASOURCE_URL","value":"jdbc:postgresql://db:5432/idli"},{"name":"IDLI_AUTH_PASSWORD_HASH","value":"placeholder"}]
 
 jobs:
   lint:

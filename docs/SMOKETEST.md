@@ -22,6 +22,18 @@ curl -fsS https://<host>/api/hello
 `gitSha` **must equal the suffix of the image tag pinned in the release values**
 (tag `sha-8aea221` → `"gitSha": "8aea221"`). This one request proves
 ingress → backend routing *and* that the pinned version is the one serving.
+`/api/hello` is deliberately public — it leaks nothing but the sha.
+
+## 2b. Auth is actually gating (images with auth, chart ≥ 0.5.0)
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://<host>/api/days/today   # → 401
+curl -fsS -u user:$PW https://<host>/api/days/today                      # → day view JSON
+```
+
+The 401 is itself a smoke assertion: data endpoints must NOT be reachable
+anonymously. The second request (HTTP Basic, fixed username `user`) proves
+routing, database, *and* the deployed credential in one go.
 
 ## 3. Frontend, through the ingress
 
