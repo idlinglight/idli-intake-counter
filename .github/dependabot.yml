@@ -1,0 +1,111 @@
+# Dependabot VERSION updates — this file's presence on main is the enable
+# switch; no settings toggle involved. Pattern deliberately identical across
+# the author's repos (public and private): one set of cadence/guard settings
+# to remember, not several. cooldown mirrors the local npm guard
+# (min-release-age=3 in ~/.npmrc).
+#
+# Deliberately NOT covered here: CVE-driven alerts / security updates are
+# separate repo-settings toggles (dependency graph enabled 2026-08-01;
+# alerts + security updates deliberately off for now). Docker base images
+# never get CVE alerts at all (not in the dependency graph) — for a critical
+# nginx/temurin advisory, bump manually instead of waiting for the weekly PR.
+#
+# ── Review traps for bump PRs in THIS repo ──────────────────────────────
+# * docker bumps: PR CI runs the verify jobs only — images are built AFTER
+#   merge to main. A broken base-image bump merges green. For a pre-merge
+#   proof, push the PR branch to build-image/<name> (that trigger exists
+#   for exactly this).
+# * springdoc majors track Spring Boot majors — a springdoc major PR only
+#   makes sense together with the matching Boot line.
+# * Boot minors/majors can relocate classes/packages (seen live: 4.1 moved
+#   TestRestTemplate). `./mvnw verify` in PR CI catches it at compile time;
+#   expect occasional import-fix commits on top of Boot bump PRs.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Vienna
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    # one weekly PR for all minor+patch bumps; majors arrive individually
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # vue-tsc can't type-check under TS 7.0 (the native/tsgo port);
+      # Vue language-tools support expected around TS 7.1 —
+      # https://github.com/vuejs/language-tools/issues/5381
+      # Range (not the whole major) so 7.1 DOES get proposed when it ships.
+      # Still current as of 2026-07-31 (latest = 7.0.2, 7.1 dev-only).
+      # (Sister repos also ignore vite majors — NOT carried here: that
+      # guard is electron-vite peer-range specific; this repo runs vite 8.)
+      - dependency-name: typescript
+        versions: ["7.0.x"]
+
+  - package-ecosystem: maven
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Vienna
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    # Most versions are managed by the spring-boot-starter-parent, so the
+    # meaningful PR volume is: parent bumps + springdoc + testcontainers.
+    groups:
+      maven-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Tag moves are channel/major decisions made deliberately; digest bumps
+  # within pinned tags would be Dependabot's job, but tags here float by
+  # design (21-jre, 26-alpine, alpine-slim) — so this section mostly guards
+  # against major-noise and documents the channel choices.
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Vienna
+    cooldown:
+      default-days: 3
+    ignore:
+      # temurin/maven-temurin majors = Java version decisions (ADR-worthy),
+      # kept in sync with pom.xml <java.version> and setup-java in CI
+      - dependency-name: eclipse-temurin
+        update-types:
+          - version-update:semver-major
+      - dependency-name: maven
+        update-types:
+          - version-update:semver-major
+      # node: stays on the chosen major, kept in sync with setup-node's
+      # node-version in frontend.yml and package.json engines
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+
+  # cooldown is unsupported for github-actions (docs, 2026-07-26) —
+  # weekly cadence + review-before-merge is the age guard here.
+  # Actions are SHA-pinned with version comments; Dependabot bumps both.
+  # NOT Dependabot's territory: node-version/java-version `with:` inputs
+  # in the workflows — those stay manual.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Vienna
