@@ -1,6 +1,48 @@
 {
   "components": {
     "schemas": {
+      "DayViewDto": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryDto"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/TotalDto"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "EntryDto": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metricId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "HelloResponse": {
         "properties": {
           "gitSha": {
@@ -11,11 +53,151 @@
           }
         },
         "type": "object"
+      },
+      "MetricDto": {
+        "properties": {
+          "canonicalUnit": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NewEntryRequest": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metricId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amount",
+          "metricId"
+        ],
+        "type": "object"
+      },
+      "TotalDto": {
+        "properties": {
+          "canonicalUnit": {
+            "type": "string"
+          },
+          "metricId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "metricName": {
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
       }
     }
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/days/{date}": {
+      "get": {
+        "operationId": "day",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DayViewDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "day-controller"
+        ]
+      }
+    },
+    "/api/entries": {
+      "post": {
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "entry-controller"
+        ]
+      }
+    },
+    "/api/entries/{id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "entry-controller"
+        ]
+      }
+    },
     "/api/hello": {
       "get": {
         "operationId": "hello",
@@ -33,6 +215,29 @@
         },
         "tags": [
           "hello-controller"
+        ]
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MetricDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "metric-controller"
         ]
       }
     }

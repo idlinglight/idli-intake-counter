@@ -4,6 +4,6 @@ description: Backend + frontend of the idli intake counter as one release
 type: application
 # Bumped manually when the chart meaningfully changes; CI publishes to
 # oci://ghcr.io — consumers pin this version exactly (see ADR-0003).
-version: 0.3.1
+version: 0.4.0
 # Informational only: concrete image tags are pinned via values by the consumer.
 appVersion: "0.1.0"
