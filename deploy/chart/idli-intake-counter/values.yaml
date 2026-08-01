@@ -3,6 +3,12 @@ backend:
     repository: ghcr.io/idlinglight/idli-intake-counter-backend
     # Pinned to a concrete sha-<short7> tag by the GitOps consumer.
     tag: sha-0000000
+  # Environment for the backend container, passed through verbatim.
+  # nodb: walking-skeleton default — no database deployed yet; drop this
+  # (and supply SPRING_DATASOURCE_* instead) once the database step lands.
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: nodb
   resources:
     requests:
       cpu: 50m

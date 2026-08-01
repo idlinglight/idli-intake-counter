@@ -14,6 +14,7 @@ Spring Boot + Vue monorepo and deployed to k3s via a Helm chart published as an 
 | `deploy/chart/` | Helm chart, published to ghcr.io as an OCI artifact |
 | `docs/adr/` | Architecture decision records |
 | `docs/DESIGN.md` | Domain model and design principles |
+| `docs/SMOKETEST.md` | How to verify a deployed release works |
 | `.github/workflows/` | Path-filtered CI: one workflow per component |
 
 ## Development

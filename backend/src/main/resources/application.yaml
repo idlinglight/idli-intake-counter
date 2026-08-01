@@ -11,3 +11,20 @@ management:
     health:
       probes:
         enabled: true
+
+---
+# nodb: walking-skeleton profile — lets the app run while no database is
+# deployed yet. Dropped once the database step lands (ADR-0004).
+# FQCNs are Boot 4's relocated autoconfigure packages; NoDbProfileTest
+# guards them (a typo here is silently ignored by Spring, not an error).
+spring:
+  config:
+    activate:
+      on-profile: nodb
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
