@@ -36,7 +36,9 @@ curl -fsS https://<host>/ | grep -q '<title>idli intake counter</title>'
   `/api/*` paths give honest 404s from the backend.
 - `/v3/api-docs` (OpenAPI spec) is served by the backend but not routed through
   the ingress — reach it via `kubectl port-forward` if needed.
-- **Walking-skeleton phase:** the backend currently runs with the `nodb`
-  profile (chart default: `SPRING_PROFILES_ACTIVE=nodb`) because no database
-  is deployed yet. Once the database step lands (ADR-0004), the release values
-  drop the profile and supply `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` instead.
+- **Database era (chart ≥ 0.4.0, images with water logging):** the backend
+  requires `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` in the release values
+  (`backend.env`; credentials via an out-of-band Secret). The earlier `nodb`
+  walking-skeleton profile no longer exists. Optional deeper probe:
+  `curl -fsS https://<host>/api/days/$(date +%F)` returns the day view JSON,
+  proving routing *and* the database connection in one request.

@@ -27,7 +27,8 @@ converted only at input and display ([ADR-0002](adr/0002-canonical-units.md)):
   ("one piece" → 250 kJ; "one bottle" → 1000 mL water). Items own 1..n portions.
 - **Entry** — timestamp + portion reference (or ad-hoc amounts) + multiplier.
 
-Sketch, not contract — the first Flyway migrations are the source of truth once they exist.
+Metric and Entry are implemented (see the Flyway migrations, which are the
+source of truth); Item and Portion arrive with the authoring step.
 
 ## Recovery model
 

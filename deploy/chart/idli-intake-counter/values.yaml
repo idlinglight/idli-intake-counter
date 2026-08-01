@@ -3,12 +3,17 @@ backend:
     repository: ghcr.io/idlinglight/idli-intake-counter-backend
     # Pinned to a concrete sha-<short7> tag by the GitOps consumer.
     tag: sha-0000000
-  # Environment for the backend container, passed through verbatim.
-  # nodb: walking-skeleton default — no database deployed yet; drop this
-  # (and supply SPRING_DATASOURCE_* instead) once the database step lands.
-  env:
-    - name: SPRING_PROFILES_ACTIVE
-      value: nodb
+  # Environment for the backend container, passed through verbatim —
+  # plain values and valueFrom/secretKeyRef entries both work. The backend
+  # REQUIRES its datasource here (the template fails to render without
+  # SPRING_DATASOURCE_URL), credentials from an out-of-band Secret:
+  #   - name: SPRING_DATASOURCE_URL
+  #     value: jdbc:postgresql://<host>:5432/idli
+  #   - name: SPRING_DATASOURCE_USERNAME
+  #     valueFrom: { secretKeyRef: { name: idli-db, key: username } }
+  #   - name: SPRING_DATASOURCE_PASSWORD
+  #     valueFrom: { secretKeyRef: { name: idli-db, key: password } }
+  env: []
   resources:
     requests:
       cpu: 50m
