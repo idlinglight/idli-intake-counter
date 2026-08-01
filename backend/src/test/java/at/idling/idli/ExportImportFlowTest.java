@@ -121,14 +121,35 @@ class ExportImportFlowTest {
 	}
 
 	@Test
-	void unsupportedFormatVersionIsRejected() {
+	void unsupportedFormatVersionIsRejectedWithTheReason() {
 		ExportDto before = export();
 
-		for (Integer version : new Integer[] { 0, 2, null }) {
-			ExportDto file = new ExportDto(version, null, List.of(WATER), List.of());
-			assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class)
-					.getStatusCode()).as("formatVersion = %s", version).isEqualTo(HttpStatus.BAD_REQUEST);
+		for (int version : new int[] { 0, 2 }) {
+			ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace",
+					new ExportDto(version, null, List.of(WATER), List.of()), String.class);
+			assertThat(response.getStatusCode()).as("formatVersion = %s", version)
+					.isEqualTo(HttpStatus.BAD_REQUEST);
+			// include-message=always: on a failing restore the reason IS the
+			// diagnosis — a bare 400 would leave the user guessing.
+			assertThat(response.getBody()).contains("unsupported formatVersion " + version);
 		}
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace",
+				new ExportDto(null, null, List.of(WATER), List.of()), String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
+
+		assertUnchanged(before);
+	}
+
+	@Test
+	void emptyMetricsAreRejectedEvenWhenWellFormed() {
+		importReplacing(validFile());
+		ExportDto before = export();
+
+		// Well-formed, passes every other validation — but applying it would
+		// leave a database no in-app gesture can put a metric back into.
+		ExportDto file = new ExportDto(1, null, List.of(), List.of());
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
 
 		assertUnchanged(before);
 	}
@@ -141,8 +162,10 @@ class ExportImportFlowTest {
 		ExportDto file = new ExportDto(1, null, List.of(WATER),
 				List.of(new ExportEntryDto("water", 100L, Instant.parse("2026-04-04T09:00:00Z")),
 						new ExportEntryDto("caffeine", 80L, Instant.parse("2026-04-04T09:30:00Z"))));
-		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
-				.isEqualTo(HttpStatus.BAD_REQUEST);
+		ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace", file,
+				String.class);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).contains("unknown metric: caffeine");
 
 		// Nothing was deleted on the way to the rejection.
 		assertUnchanged(before);

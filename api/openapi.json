@@ -63,6 +63,7 @@
             "items": {
               "$ref": "#/components/schemas/ExportMetricDto"
             },
+            "minItems": 1,
             "type": "array"
           }
         },
@@ -377,6 +378,9 @@
             "name": "mode",
             "required": true,
             "schema": {
+              "enum": [
+                "replace"
+              ],
               "type": "string"
             }
           }

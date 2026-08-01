@@ -1,6 +1,5 @@
 package at.idling.idli;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -18,11 +17,10 @@ public class IntakeService {
 	private final EntryRepository entryRepository;
 	private final ZoneId zone;
 
-	public IntakeService(MetricRepository metricRepository, EntryRepository entryRepository,
-			@Value("${idli.zone:Europe/Vienna}") String zone) {
+	public IntakeService(MetricRepository metricRepository, EntryRepository entryRepository, ZoneId zone) {
 		this.metricRepository = metricRepository;
 		this.entryRepository = entryRepository;
-		this.zone = ZoneId.of(zone);
+		this.zone = zone;
 	}
 
 	public List<MetricDto> metrics() {

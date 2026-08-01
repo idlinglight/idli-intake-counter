@@ -125,7 +125,24 @@ describe('DataView', () => {
     expect(wrapper.find('[data-testid="import-confirm"]').exists()).toBe(false)
   })
 
-  it('surfaces a rejected import with the status code', async () => {
+  it('surfaces the server rejection reason when the import fails', async () => {
+    postMock.mockResolvedValue({
+      error: { message: 'unsupported formatVersion 0; this build reads formatVersion 1' },
+      response: new Response(null, { status: 400 }),
+    })
+    const wrapper = mount(DataView)
+    await chooseFile(wrapper, JSON.stringify(exportFile))
+
+    const replaceButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Replace everything')!
+    await replaceButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('import failed: unsupported formatVersion 0')
+  })
+
+  it('falls back to the HTTP status when the rejection carries no message', async () => {
     postMock.mockResolvedValue({ error: {}, response: new Response(null, { status: 400 }) })
     const wrapper = mount(DataView)
     await chooseFile(wrapper, JSON.stringify(exportFile))
@@ -147,6 +164,12 @@ describe('DataView', () => {
     expect(wrapper.find('[data-testid="import-confirm"]').exists()).toBe(false)
 
     await chooseFile(wrapper, JSON.stringify({ some: 'thing' }))
+    expect(wrapper.text()).toContain('not an idli export file')
+    expect(wrapper.find('[data-testid="import-confirm"]').exists()).toBe(false)
+
+    // JSON.parse('null') succeeds — the one parse result that used to escape
+    // the shape check and throw on property access.
+    await chooseFile(wrapper, 'null')
     expect(wrapper.text()).toContain('not an idli export file')
     expect(wrapper.find('[data-testid="import-confirm"]').exists()).toBe(false)
   })

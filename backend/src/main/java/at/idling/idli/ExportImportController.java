@@ -1,7 +1,6 @@
 package at.idling.idli;
 
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -19,13 +18,17 @@ import java.time.ZoneId;
 @RequestMapping("/api")
 public class ExportImportController {
 
+	// Lowercase constant so wire value, contract enum, and code read the same.
+	public enum ImportMode {
+		replace
+	}
+
 	private final ExportImportService exportImportService;
 	private final ZoneId zone;
 
-	public ExportImportController(ExportImportService exportImportService,
-			@Value("${idli.zone:Europe/Vienna}") String zone) {
+	public ExportImportController(ExportImportService exportImportService, ZoneId zone) {
 		this.exportImportService = exportImportService;
-		this.zone = ZoneId.of(zone);
+		this.zone = zone;
 	}
 
 	// Content-Disposition makes a plain browser hit save a dated file; the
@@ -41,14 +44,12 @@ public class ExportImportController {
 	}
 
 	// mode=replace is a required, explicit acknowledgement that import
-	// REPLACES the whole database (a restore, not a merge — ADR-0004).
-	// Leaving it out is a 400, so nothing destructive happens by default.
+	// REPLACES the whole database (a restore, not a merge — ADR-0004). As an
+	// enum it lives in the machine-checked contract: any other value — or no
+	// value — is a 400 before this handler runs, and generated clients can
+	// only ever say "replace" knowingly.
 	@PostMapping("/import")
-	public ImportSummaryDto importData(@RequestParam String mode, @Valid @RequestBody ExportDto file) {
-		if (!"replace".equals(mode)) {
-			throw new InvalidImportException("unsupported mode '" + mode
-					+ "': import replaces the entire database; call with mode=replace to confirm");
-		}
+	public ImportSummaryDto importData(@RequestParam ImportMode mode, @Valid @RequestBody ExportDto file) {
 		return exportImportService.importReplacing(file);
 	}
 

@@ -1,6 +1,7 @@
 package at.idling.idli;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.Instant;
@@ -17,5 +18,5 @@ import java.util.List;
  * @param exportedAt    when the export was taken; informational on import
  */
 public record ExportDto(@NotNull Integer formatVersion, Instant exportedAt,
-		@NotNull List<@Valid ExportMetricDto> metrics, @NotNull List<@Valid ExportEntryDto> entries) {
+		@NotEmpty List<@Valid ExportMetricDto> metrics, @NotNull List<@Valid ExportEntryDto> entries) {
 }

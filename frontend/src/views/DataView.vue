@@ -49,7 +49,7 @@ async function onFileChosen(event: Event) {
   // Clearing lets the same file be picked again after a cancel.
   input.value = ''
   if (!file) return
-  let parsed: ExportFile
+  let parsed: unknown
   try {
     parsed = JSON.parse(await file.text())
   } catch {
@@ -57,12 +57,14 @@ async function onFileChosen(event: Event) {
     return
   }
   // Shape sanity only, enough to render the confirmation honestly — the
-  // server is the validator.
-  if (!Array.isArray(parsed.metrics) || !Array.isArray(parsed.entries)) {
+  // server is the validator. The null check is real: JSON.parse('null')
+  // succeeds, and null is the one parse result property access throws on.
+  const candidate = parsed as ExportFile | null
+  if (candidate === null || !Array.isArray(candidate.metrics) || !Array.isArray(candidate.entries)) {
     error.value = 'not an idli export file'
     return
   }
-  pendingFile.value = parsed
+  pendingFile.value = candidate
   pendingName.value = file.name
 }
 
@@ -76,18 +78,21 @@ async function confirmImport() {
   busy.value = true
   error.value = ''
   try {
-    const { data, response } = await api.POST('/api/import', {
+    const result = await api.POST('/api/import', {
       params: { query: { mode: 'replace' } },
       body: pendingFile.value,
     })
     // Captured before the !data check: the contract documents no error
-    // responses, so inside that branch TS narrows `response` away entirely.
-    const status = response.status
-    if (!data) {
-      error.value = `import failed (HTTP ${status})`
+    // responses, so inside that branch TS narrows the result away entirely.
+    const status = result.response.status
+    // The backend puts the rejection reason in `message`
+    // (server.error.include-message) — on a failing restore it IS the diagnosis.
+    const body = result.error as { message?: string } | undefined
+    if (!result.data) {
+      error.value = body?.message ? `import failed: ${body.message}` : `import failed (HTTP ${status})`
       return
     }
-    notice.value = `import done: ${data.metrics ?? 0} metrics, ${data.entries ?? 0} entries`
+    notice.value = `import done: ${result.data.metrics ?? 0} metrics, ${result.data.entries ?? 0} entries`
     pendingFile.value = null
     pendingName.value = ''
   } catch {

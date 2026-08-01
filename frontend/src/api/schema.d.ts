@@ -380,7 +380,7 @@ export interface operations {
     importData: {
         parameters: {
             query: {
-                mode: string;
+                mode: "replace";
             };
             header?: never;
             path?: never;

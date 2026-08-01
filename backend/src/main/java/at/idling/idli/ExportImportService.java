@@ -1,6 +1,7 @@
 package at.idling.idli;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -31,6 +32,12 @@ public class ExportImportService {
 		this.entryRepository = entryRepository;
 	}
 
+	// REPEATABLE_READ, deliberately: one snapshot for both reads. Under the
+	// default READ_COMMITTED every statement sees its own snapshot, so an
+	// import committing between the two findAll()s would renumber the metric
+	// ids and this method would emit entries with "metric": null — a backup
+	// that fails exactly when it is needed: at restore time.
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public ExportDto export() {
 		List<Metric> metrics = metricRepository.findAll().stream()
 				.sorted(Comparator.comparing(Metric::getId))
@@ -40,7 +47,7 @@ public class ExportImportService {
 		// Deterministic order keeps two exports of the same data diffable.
 		List<ExportEntryDto> entries = entryRepository.findAll().stream()
 				.sorted(Comparator.comparing(Entry::getLoggedAt).thenComparing(Entry::getId))
-				.map(entry -> new ExportEntryDto(nameById.get(entry.getMetricId()), entry.getAmount(),
+				.map(entry -> new ExportEntryDto(requireMetricName(nameById, entry), entry.getAmount(),
 						entry.getLoggedAt()))
 				.toList();
 		return new ExportDto(FORMAT_VERSION, Instant.now(),
@@ -56,6 +63,14 @@ public class ExportImportService {
 		if (file.formatVersion() != FORMAT_VERSION) {
 			throw new InvalidImportException("unsupported formatVersion " + file.formatVersion()
 					+ "; this build reads formatVersion " + FORMAT_VERSION);
+		}
+		// Also guarded by @NotEmpty at the controller; kept here so no caller
+		// can apply a file that leaves the database metric-less. There is no
+		// endpoint that creates metrics, so that state would be unrecoverable
+		// from inside the app.
+		if (file.metrics().isEmpty()) {
+			throw new InvalidImportException(
+					"import would leave the database without any metrics; refusing an empty file");
 		}
 		Set<String> names = new HashSet<>();
 		for (ExportMetricDto metric : file.metrics()) {
@@ -82,6 +97,18 @@ public class ExportImportService {
 				.map(entry -> new Entry(idByName.get(entry.metric()), entry.amount(), entry.loggedAt()))
 				.toList());
 		return new ImportSummaryDto(file.metrics().size(), file.entries().size());
+	}
+
+	// Belt to the isolation level's braces: a null name would serialize into
+	// the file and surface only at restore time. Better no export than a
+	// silently corrupt one.
+	private static String requireMetricName(Map<Long, String> nameById, Entry entry) {
+		String name = nameById.get(entry.getMetricId());
+		if (name == null) {
+			throw new IllegalStateException(
+					"entry " + entry.getId() + " references missing metric id " + entry.getMetricId());
+		}
+		return name;
 	}
 
 }
