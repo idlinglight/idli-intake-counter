@@ -46,8 +46,8 @@ One responsive app; each screen is designed for its primary surface rather than 
 
 ## Roadmap (coarse)
 
-1. Walking skeleton: trivial end-to-end slice through the full build/deploy pipeline
-2. Water logging (first real metric, mobile logging surface)
-3. Energy + items/portions (authoring surface)
-4. JSON export/import
-5. Auth ([ADR-0005](adr/0005-single-user-scope.md))
+1. ✓ Walking skeleton: trivial end-to-end slice through the full build/deploy pipeline
+2. ✓ Water logging (first real metric, mobile logging surface)
+3. ✓ Auth ([ADR-0005](adr/0005-single-user-scope.md)) — pulled ahead: it gates real data in production
+4. Energy + items/portions (authoring surface)
+5. JSON export/import

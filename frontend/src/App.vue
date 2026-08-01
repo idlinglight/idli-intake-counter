@@ -1,6 +1,15 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import BackendStatus from './components/BackendStatus.vue'
+import LoginView from './views/LoginView.vue'
+import { useAuthStore } from './stores/auth'
+
+const auth = useAuthStore()
+
+// This first GET also makes the server issue the XSRF-TOKEN cookie
+// that the (mutating) login POST needs.
+onMounted(() => auth.check())
 </script>
 
 <template>
@@ -8,16 +17,25 @@ import BackendStatus from './components/BackendStatus.vue'
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
     <div class="wrapper">
-      <nav>
+      <nav v-if="auth.authenticated">
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/about">About</RouterLink>
       </nav>
 
-      <BackendStatus />
+      <div class="status-row">
+        <BackendStatus />
+        <button v-if="auth.authenticated" type="button" class="logout" @click="auth.logout()">
+          log out
+        </button>
+      </div>
     </div>
   </header>
 
-  <RouterView />
+  <!-- Nothing but the header until the session check has answered. -->
+  <template v-if="auth.checked">
+    <RouterView v-if="auth.authenticated" />
+    <LoginView v-else />
+  </template>
 </template>
 
 <style scoped>
@@ -56,6 +74,27 @@ nav a:first-of-type {
   border: 0;
 }
 
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.logout {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.logout:hover {
+  opacity: 1;
+}
+
 @media (min-width: 1024px) {
   header {
     display: flex;
@@ -80,6 +119,10 @@ nav a:first-of-type {
 
     padding: 1rem 0;
     margin-top: 1rem;
+  }
+
+  .status-row {
+    justify-content: flex-start;
   }
 }
 </style>
