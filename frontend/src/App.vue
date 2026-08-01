@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import BackendStatus from './components/BackendStatus.vue'
 import LoginView from './views/LoginView.vue'
@@ -7,9 +7,18 @@ import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
 
+const logoutError = ref('')
+
 // This first GET also makes the server issue the XSRF-TOKEN cookie
 // that the (mutating) login POST needs.
 onMounted(() => auth.check())
+
+// logout() returns false when the session may still be alive server-side
+// (unreachable backend, missing CSRF token, any non-2xx). Swallowing that
+// would leave the button looking inert while the user believes they are out.
+async function logOut() {
+  logoutError.value = (await auth.logout()) ? '' : 'logout failed — you are still logged in'
+}
 </script>
 
 <template>
@@ -24,10 +33,15 @@ onMounted(() => auth.check())
 
       <div class="status-row">
         <BackendStatus />
-        <button v-if="auth.authenticated" type="button" class="logout" @click="auth.logout()">
+        <button v-if="auth.authenticated" type="button" class="logout" @click="logOut">
           log out
         </button>
       </div>
+
+      <!-- Guarded by authenticated: a later logout by any route clears it. -->
+      <p v-if="logoutError && auth.authenticated" class="logout-error" role="alert">
+        {{ logoutError }}
+      </p>
     </div>
   </header>
 
@@ -93,6 +107,13 @@ nav a:first-of-type {
 
 .logout:hover {
   opacity: 1;
+}
+
+.logout-error {
+  margin-top: 0.5rem;
+  font-size: 12px;
+  text-align: center;
+  color: #c0392b;
 }
 
 @media (min-width: 1024px) {

@@ -31,7 +31,10 @@ cd backend
 ```
 
 (`spring-boot:run` — the compose-based variant — additionally needs
-`IDLI_AUTH_PASSWORD_HASH` exported; mint one with `scripts/mint-auth-hash.sh`.)
+`IDLI_AUTH_PASSWORD_HASH` exported; mint one with `scripts/mint-auth-hash.sh`.
+It must be the bare bcrypt hash — no `{bcrypt}` prefix, no leading `:` from the
+htpasswd line — which the backend checks at startup rather than failing every
+later login.)
 
 Frontend (dev server proxies `/api` to `:8080`):
 

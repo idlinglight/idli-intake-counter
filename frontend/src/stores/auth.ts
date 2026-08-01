@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { api, onUnauthorized } from '@/api/client'
 import { readCookie, XSRF_COOKIE, XSRF_HEADER } from '@/api/csrf'
 
-export type LoginResult = 'ok' | 'wrong-password' | 'unreachable'
+export type LoginResult = 'ok' | 'wrong-password' | 'unreachable' | 'no-session'
 
 /**
  * Login/logout are filter-based endpoints outside the OpenAPI contract —
@@ -68,11 +68,15 @@ export const useAuthStore = defineStore('auth', () => {
     if (!response.ok) {
       return 'unreachable'
     }
-    authenticated.value = true
     // Login rotated the CSRF token. Re-checking the session is a GET, which
     // makes the server re-issue the cookie before any further mutation.
     await check()
-    return 'ok'
+    // A 2xx does not prove a session exists. The session cookie is Secure, so
+    // a browser on a plain-http origin other than localhost (a phone pointed
+    // at the dev server, say) accepts the 204 and silently drops the cookie.
+    // Reporting 'ok' there leaves the login form re-rendering with nothing to
+    // say, forever — so the re-check, not the status code, decides.
+    return authenticated.value ? 'ok' : 'no-session'
   }
 
   async function logout(): Promise<boolean> {

@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import LoginView from '../LoginView.vue'
 
-type Login = (password: string) => Promise<'ok' | 'wrong-password' | 'unreachable'>
+import type { LoginResult } from '@/stores/auth'
+
+type Login = (password: string) => Promise<LoginResult>
 
 const { loginMock } = vi.hoisted(() => ({
   loginMock: vi.fn<Login>(),
@@ -55,5 +57,16 @@ describe('LoginView', () => {
     await submitPassword(wrapper, 'hunter2')
 
     expect(wrapper.get('.error').text()).toBe('backend unreachable')
+  })
+
+  it('explains a dropped session cookie instead of re-rendering silently', async () => {
+    // Right password, but the browser refused the Secure cookie. Without a
+    // message the form just comes back blank-faced, every time, forever.
+    loginMock.mockResolvedValue('no-session')
+    const wrapper = mount(LoginView)
+
+    await submitPassword(wrapper, 'hunter2')
+
+    expect(wrapper.get('.error').text()).toContain('https')
   })
 })

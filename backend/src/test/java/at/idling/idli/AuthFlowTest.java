@@ -52,6 +52,19 @@ class AuthFlowTest {
 	}
 
 	@Test
+	void basicAuthFailureSendsNoChallenge() {
+		ResponseEntity<Void> response = restTemplate.withBasicAuth(TestAuth.USERNAME, "wrong-password")
+				.getForEntity("/api/days/today", Void.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+		// A "WWW-Authenticate: Basic" challenge would make the browser cache the
+		// credentials for this origin and re-attach them on its own — including
+		// on a cross-site POST, which carries no cookie and is therefore exempt
+		// from CSRF. No challenge, no cached credentials, no bypass.
+		assertThat(response.getHeaders().getOrEmpty(HttpHeaders.WWW_AUTHENTICATE)).isEmpty();
+	}
+
+	@Test
 	void basicAuthGrantsAccess() {
 		ResponseEntity<DayViewDto> response = restTemplate.withBasicAuth(TestAuth.USERNAME, TestAuth.PASSWORD)
 				.getForEntity("/api/days/today", DayViewDto.class);
@@ -185,6 +198,20 @@ class AuthFlowTest {
 		// eviction for the 30d server-session lifetime.
 		assertThat(sessionSetCookie).contains("Secure");
 		assertThat(sessionSetCookie).contains("Max-Age=2592000");
+	}
+
+	@Test
+	void csrfCookieCarriesSecureAndSameSite() {
+		ResponseEntity<SessionDto> response = restTemplate.getForEntity("/api/auth/session", SessionDto.class);
+
+		String csrfSetCookie = response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
+				.filter(cookie -> cookie.startsWith(XSRF_COOKIE + "="))
+				.findFirst()
+				.orElseThrow();
+		// Double-submit means the cookie IS the protection: without Secure,
+		// anyone reaching the host over plaintext plants a token they know.
+		assertThat(csrfSetCookie).contains("Secure");
+		assertThat(csrfSetCookie).contains("SameSite=Lax");
 	}
 
 	@Test

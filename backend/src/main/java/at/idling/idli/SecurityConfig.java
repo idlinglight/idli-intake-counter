@@ -5,7 +5,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -14,12 +13,15 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
+
+import java.util.regex.Pattern;
 
 @Configuration
 @EnableWebSecurity
@@ -29,11 +31,24 @@ public class SecurityConfig {
 	// authorization is simply "authenticated or not".
 	static final String USERNAME = "user";
 
+	// A bare bcrypt hash as scripts/mint-auth-hash.sh emits it.
+	private static final Pattern BCRYPT_HASH = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
+
 	@Bean
 	UserDetailsService userDetailsService(@Value("${idli.auth.password-hash}") String passwordHash) {
 		// No default for the hash (see application.yaml): a missing value fails
 		// startup here instead of producing an app nobody can log in to.
 		Assert.hasText(passwordHash, "idli.auth.password-hash must not be empty");
+		// Non-empty is not enough. A malformed hash starts the app *healthy* —
+		// probes go green, the rollout succeeds — and then rejects every login
+		// forever, indistinguishable from a wrong password (BCryptPasswordEncoder
+		// logs "does not look like BCrypt" and returns false). The mangles that
+		// actually happen: pasting the whole htpasswd line including its leading
+		// ':', hand-adding a '{bcrypt}' prefix, a line-wrapped Secret value.
+		Assert.isTrue(BCRYPT_HASH.matcher(passwordHash).matches(),
+				"idli.auth.password-hash must be a bare bcrypt hash ($2a/$2b/$2y$<cost>$<53 chars>): "
+						+ "no '{bcrypt}' prefix, no leading ':' from the htpasswd line. "
+						+ "Mint one with scripts/mint-auth-hash.sh");
 		return new InMemoryUserDetailsManager(
 				User.withUsername(USERNAME).password("{bcrypt}" + passwordHash).roles("USER").build());
 	}
@@ -41,10 +56,16 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		// Programmatic clients (curl, tests) authenticate per request via HTTP
-		// Basic and carry no ambient cookie authority — but that premise must
-		// hold by construction, not by comment: the exemption applies only when
-		// NO session exists. A request carrying both a live session cookie and
-		// a Basic header still needs the CSRF token.
+		// Basic and carry no ambient authority — but that premise must hold by
+		// construction, not by comment, and it takes two things. First: the
+		// exemption applies only when NO session exists, so a request carrying
+		// both a live session cookie and a Basic header still needs the CSRF
+		// token. Second, less obvious: the Basic entry point below never sends
+		// a WWW-Authenticate challenge. A challenge would make the browser
+		// cache the credentials for this origin and re-attach them by itself —
+		// turning a cross-site POST into one that is authenticated, cookie-less
+		// and therefore CSRF-exempt. SameSite=Lax does not help there; the
+		// Authorization header is not a cookie.
 		RequestMatcher statelessBasicRequest = request -> {
 			String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
 			boolean basic = authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6);
@@ -61,6 +82,15 @@ public class SecurityConfig {
 		RequestMatcher loginRequest = request -> "POST".equals(request.getMethod())
 				&& "/api/auth/login".equals(request.getRequestURI());
 
+		// In a stateless double-submit scheme the cookie IS the protection, so
+		// it gets the same hardening as the session cookie in application.yaml:
+		// without Secure, anyone who can reach the host over plaintext plants a
+		// token they already know and CSRF stops meaning anything. Static, for
+		// the same reason as there — and localhost stays a trustworthy origin,
+		// so local dev over http keeps working.
+		CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
+		csrfTokens.setCookieCustomizer(cookie -> cookie.secure(true).sameSite("Lax"));
+
 		http
 				.authorizeHttpRequests(authorize -> authorize
 						.requestMatchers("/api/hello", "/api/auth/**").permitAll()
@@ -70,13 +100,20 @@ public class SecurityConfig {
 						.anyRequest().authenticated())
 				// spa() = CookieCsrfTokenRepository.withHttpOnlyFalse() + a handler that
 				// accepts the raw token from the X-XSRF-TOKEN header and eagerly resolves
-				// the deferred token, so the XSRF-TOKEN cookie is actually written.
+				// the deferred token, so the XSRF-TOKEN cookie is actually written. The
+				// repository override keeps that handler and only swaps in the hardened
+				// cookie above.
 				.csrf(csrf -> csrf
 						.spa()
+						.csrfTokenRepository(csrfTokens)
 						.requireCsrfProtectionMatcher(new AndRequestMatcher(
 								CsrfFilter.DEFAULT_CSRF_MATCHER, new NegatedRequestMatcher(statelessBasicRequest),
 								new NegatedRequestMatcher(loginRequest))))
-				.httpBasic(Customizer.withDefaults())
+				// A bare 401, never "WWW-Authenticate: Basic" — see statelessBasicRequest
+				// above. Clients that use Basic here (curl -u, TestRestTemplate) send the
+				// header preemptively and never needed the challenge.
+				.httpBasic(basic -> basic
+						.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 				// This API answers unauthenticated requests with a bare 401 and never
 				// replays a saved request; the default RequestCache would create a
 				// session for every anonymous hit on a protected endpoint.

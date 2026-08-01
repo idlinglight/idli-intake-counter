@@ -86,6 +86,31 @@ describe('auth store', () => {
     expect(store.authenticated).toBe(true)
   })
 
+  it('login() signals no-session when the re-check finds no session', async () => {
+    // The browser refused the Secure JSESSIONID (plain-http origin that is not
+    // localhost): the POST still answers 204, so the status code alone would
+    // report success and strand the user on a silent login form.
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+    getMock.mockResolvedValue({ data: { authenticated: false } })
+    const store = useAuthStore()
+
+    const result = await store.login('hunter2')
+
+    expect(result).toBe('no-session')
+    expect(store.authenticated).toBe(false)
+  })
+
+  it('login() signals no-session when the re-check cannot reach the backend', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+    getMock.mockRejectedValue(new Error('network down'))
+    const store = useAuthStore()
+
+    const result = await store.login('hunter2')
+
+    expect(result).toBe('no-session')
+    expect(store.authenticated).toBe(false)
+  })
+
   it('login() signals wrong-password on 401 and stays unauthenticated', async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 401 }))
     const store = useAuthStore()

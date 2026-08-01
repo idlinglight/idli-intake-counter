@@ -19,6 +19,9 @@ async function submit() {
     password.value = ''
   } else if (result === 'unreachable') {
     error.value = 'backend unreachable'
+  } else if (result === 'no-session') {
+    // The password was right; the browser refused the Secure session cookie.
+    error.value = 'the browser did not keep the session — open this page over https'
   }
   // On success App.vue swaps this surface for the app — nothing to do here.
 }
