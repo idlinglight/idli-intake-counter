@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/hello": {
         parameters: {
             query?: never;
@@ -94,6 +110,22 @@ export interface paths {
         get: operations["hello"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importData"];
         delete?: never;
         options?: never;
         head?: never;
@@ -136,9 +168,34 @@ export interface components {
             /** Format: int64 */
             metricId?: number;
         };
+        ExportDto: {
+            entries: components["schemas"]["ExportEntryDto"][];
+            /** Format: date-time */
+            exportedAt?: string;
+            /** Format: int32 */
+            formatVersion: number;
+            metrics: components["schemas"]["ExportMetricDto"][];
+        };
+        ExportEntryDto: {
+            /** Format: int64 */
+            amount: number;
+            /** Format: date-time */
+            loggedAt: string;
+            metric: string;
+        };
+        ExportMetricDto: {
+            canonicalUnit: string;
+            name: string;
+        };
         HelloResponse: {
             gitSha?: string;
             message?: string;
+        };
+        ImportSummaryDto: {
+            /** Format: int32 */
+            entries?: number;
+            /** Format: int32 */
+            metrics?: number;
         };
         MetricDto: {
             canonicalUnit?: string;
@@ -280,6 +337,26 @@ export interface operations {
             };
         };
     };
+    export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ExportDto"];
+                };
+            };
+        };
+    };
     hello: {
         parameters: {
             query?: never;
@@ -296,6 +373,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["HelloResponse"];
+                };
+            };
+        };
+    };
+    importData: {
+        parameters: {
+            query: {
+                mode: "replace";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportDto"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ImportSummaryDto"];
                 };
             };
         };

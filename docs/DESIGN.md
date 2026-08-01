@@ -36,6 +36,11 @@ Full app-level JSON export/import (config *and* entries — the data is tiny), w
 `formatVersion` field. This is the disaster-recovery story, deliberately instead of
 database backups ([ADR-0004](adr/0004-storage-posture.md)). Import doubles as seed data.
 
+Implemented as `GET /api/export` (dated attachment) and `POST /api/import?mode=replace`
+(transactional replace-all — a restore, not a merge; the explicit `mode` parameter is
+the destructive-intent acknowledgement). Entries reference metrics by name, since ids
+are not preserved across a re-import.
+
 ## UI principle: two flows, two primary surfaces
 
 - **Logging** — mobile-first: big targets, favorites, repeat-last, budget glance.
@@ -49,5 +54,6 @@ One responsive app; each screen is designed for its primary surface rather than 
 1. ✓ Walking skeleton: trivial end-to-end slice through the full build/deploy pipeline
 2. ✓ Water logging (first real metric, mobile logging surface)
 3. ✓ Auth ([ADR-0005](adr/0005-single-user-scope.md)) — pulled ahead: it gates real data in production
-4. Energy + items/portions (authoring surface)
-5. JSON export/import
+4. ✓ JSON export/import — pulled ahead of authoring: production held real data
+   from day one, and the recovery story shouldn't lag it
+5. Energy + items/portions (authoring surface)

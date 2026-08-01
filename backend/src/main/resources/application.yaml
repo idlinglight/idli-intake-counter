@@ -1,6 +1,15 @@
 spring:
   application:
     name: idli-backend
+  web:
+    error:
+      # The default ("never") strips exception messages from error bodies.
+      # The import 400s carry the actionable reason (unsupported formatVersion,
+      # unknown metric, …) — on the recovery gesture, a bare status code is not
+      # a diagnosis. All messages here are ours and secret-free. NB Boot 4
+      # moved this here from the classic server.error.* prefix (BasicErrorController
+      # binds WebProperties; server.error.* silently no-ops for MVC bodies).
+      include-message: always
   # Datasource credentials are intentionally not hardcoded here.
   # Local dev: spring-boot-docker-compose picks them up from compose.yaml.
   # Tests: Testcontainers provides them via @ServiceConnection.

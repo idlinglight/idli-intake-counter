@@ -20,4 +20,12 @@ public interface EntryRepository extends ListCrudRepository<Entry, Long> {
 	@Query("delete from Entry e where e.id = :id")
 	int deleteEntryById(long id);
 
+	// Import wipes the table in one statement; deleteAll() would issue a
+	// select plus one delete per row. Deliberately not @Transactional: this
+	// must only ever run inside the import transaction, and @Modifying fails
+	// loudly without one.
+	@Modifying
+	@Query("delete from Entry e")
+	void deleteAllInBulk();
+
 }

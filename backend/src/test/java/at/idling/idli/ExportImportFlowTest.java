@@ -1,0 +1,223 @@
+package at.idling.idli;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * Exercises the ADR-0004 recovery gesture over real HTTP: export must emit a
+ * file that import can restore verbatim, and import must be all-or-nothing.
+ *
+ * The DB is shared with the other flow-test classes (cached context), so
+ * every test here leaves the water metric in place, and entries land on
+ * 2026-04-04 — a day no other test class asserts on.
+ */
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = TestAuth.PASSWORD_HASH_PROPERTY)
+@AutoConfigureTestRestTemplate
+class ExportImportFlowTest {
+
+	private static final ExportMetricDto WATER = new ExportMetricDto("water", "mL");
+
+	private TestRestTemplate plainTemplate;
+	private TestRestTemplate restTemplate;
+
+	@Autowired
+	void setRestTemplate(TestRestTemplate restTemplate) {
+		this.plainTemplate = restTemplate;
+		this.restTemplate = restTemplate.withBasicAuth(TestAuth.USERNAME, TestAuth.PASSWORD);
+	}
+
+	@Test
+	void exportAndImportRequireAuthentication() {
+		assertThat(plainTemplate.getForEntity("/api/export", String.class).getStatusCode())
+				.isEqualTo(HttpStatus.UNAUTHORIZED);
+		assertThat(plainTemplate.postForEntity("/api/import?mode=replace", validFile(), String.class)
+				.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+	}
+
+	@Test
+	void exportIsAVersionedAttachmentContainingTheData() {
+		importReplacing(validFile());
+
+		ResponseEntity<ExportDto> response = restTemplate.getForEntity("/api/export", ExportDto.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		ContentDisposition disposition = response.getHeaders().getContentDisposition();
+		assertThat(disposition.getType()).isEqualTo("attachment");
+		assertThat(disposition.getFilename()).matches("idli-export-\\d{4}-\\d{2}-\\d{2}\\.json");
+
+		ExportDto export = response.getBody();
+		assertThat(export).isNotNull();
+		assertThat(export.formatVersion()).isEqualTo(1);
+		assertThat(export.exportedAt()).isNotNull();
+		assertThat(export.metrics()).contains(WATER);
+		assertThat(export.entries())
+				.contains(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z")));
+	}
+
+	@Test
+	void importReplacesEverythingAndRoundTrips() {
+		ExportDto file = new ExportDto(1, Instant.parse("2026-04-04T20:00:00Z"),
+				List.of(WATER, new ExportMetricDto("energy", "kJ")),
+				List.of(new ExportEntryDto("water", 300L, Instant.parse("2026-04-04T07:00:00Z")),
+						new ExportEntryDto("energy", 1500L, Instant.parse("2026-04-04T12:00:00Z"))));
+
+		ResponseEntity<ImportSummaryDto> response = restTemplate.postForEntity("/api/import?mode=replace",
+				file, ImportSummaryDto.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(response.getBody()).isEqualTo(new ImportSummaryDto(2, 2));
+
+		// The re-export IS the round-trip proof: same metrics, same entries.
+		ExportDto reExported = export();
+		assertThat(reExported.metrics()).isEqualTo(file.metrics());
+		assertThat(reExported.entries()).isEqualTo(file.entries());
+	}
+
+	@Test
+	void importedEntriesFollowRenumberedMetricIds() {
+		importReplacing(validFile());
+
+		List<MetricDto> metrics = restTemplate
+				.exchange("/api/metrics", HttpMethod.GET, null, new ParameterizedTypeReference<List<MetricDto>>() {
+				})
+				.getBody();
+		assertThat(metrics).hasSize(1);
+		MetricDto water = metrics.get(0);
+		assertThat(water.name()).isEqualTo("water");
+
+		// The day view joins entries to metrics by id — if import had kept the
+		// file's implicit ids instead of the freshly generated ones, this join
+		// would come back empty.
+		DayViewDto day = restTemplate.getForEntity("/api/days/2026-04-04", DayViewDto.class).getBody();
+		assertThat(day).isNotNull();
+		assertThat(day.totals()).containsExactly(new TotalDto(water.id(), "water", "mL", 250));
+	}
+
+	@Test
+	void importWithoutExplicitReplaceModeIsRejected() {
+		ExportDto before = export();
+
+		assertThat(restTemplate.postForEntity("/api/import", validFile(), String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(restTemplate.postForEntity("/api/import?mode=merge", validFile(), String.class)
+				.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+		assertUnchanged(before);
+	}
+
+	@Test
+	void unsupportedFormatVersionIsRejectedWithTheReason() {
+		ExportDto before = export();
+
+		for (int version : new int[] { 0, 2 }) {
+			ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace",
+					new ExportDto(version, null, List.of(WATER), List.of()), String.class);
+			assertThat(response.getStatusCode()).as("formatVersion = %s", version)
+					.isEqualTo(HttpStatus.BAD_REQUEST);
+			// include-message=always: on a failing restore the reason IS the
+			// diagnosis — a bare 400 would leave the user guessing.
+			assertThat(response.getBody()).contains("unsupported formatVersion " + version);
+		}
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace",
+				new ExportDto(null, null, List.of(WATER), List.of()), String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
+
+		assertUnchanged(before);
+	}
+
+	@Test
+	void emptyMetricsAreRejectedEvenWhenWellFormed() {
+		importReplacing(validFile());
+		ExportDto before = export();
+
+		// Well-formed, passes every other validation — but applying it would
+		// leave a database no in-app gesture can put a metric back into.
+		ExportDto file = new ExportDto(1, null, List.of(), List.of());
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
+
+		assertUnchanged(before);
+	}
+
+	@Test
+	void importIsAtomicWhenAnEntryReferencesAnUnknownMetric() {
+		importReplacing(validFile());
+		ExportDto before = export();
+
+		ExportDto file = new ExportDto(1, null, List.of(WATER),
+				List.of(new ExportEntryDto("water", 100L, Instant.parse("2026-04-04T09:00:00Z")),
+						new ExportEntryDto("caffeine", 80L, Instant.parse("2026-04-04T09:30:00Z"))));
+		ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace", file,
+				String.class);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).contains("unknown metric: caffeine");
+
+		// Nothing was deleted on the way to the rejection.
+		assertUnchanged(before);
+	}
+
+	@Test
+	void duplicateMetricNamesAreRejected() {
+		ExportDto file = new ExportDto(1, null, List.of(WATER, new ExportMetricDto("water", "L")), List.of());
+
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
+				.isEqualTo(HttpStatus.BAD_REQUEST);
+	}
+
+	@Test
+	void malformedFilesAreRejectedByValidation() {
+		ExportDto blankMetricName = new ExportDto(1, null, List.of(new ExportMetricDto(" ", "mL")), List.of());
+		ExportDto nonPositiveAmount = new ExportDto(1, null, List.of(WATER),
+				List.of(new ExportEntryDto("water", 0L, Instant.parse("2026-04-04T09:00:00Z"))));
+		ExportDto missingLoggedAt = new ExportDto(1, null, List.of(WATER),
+				List.of(new ExportEntryDto("water", 100L, null)));
+		ExportDto missingLists = new ExportDto(1, null, null, null);
+
+		for (ExportDto file : new ExportDto[] { blankMetricName, nonPositiveAmount, missingLoggedAt,
+				missingLists }) {
+			assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class)
+					.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	/** A minimal valid file; always contains the water metric (shared DB, see class comment). */
+	private ExportDto validFile() {
+		return new ExportDto(1, Instant.parse("2026-04-04T20:00:00Z"), List.of(WATER),
+				List.of(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z"))));
+	}
+
+	private void importReplacing(ExportDto file) {
+		ResponseEntity<ImportSummaryDto> response = restTemplate.postForEntity("/api/import?mode=replace",
+				file, ImportSummaryDto.class);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+	}
+
+	private ExportDto export() {
+		ResponseEntity<ExportDto> response = restTemplate.getForEntity("/api/export", ExportDto.class);
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(response.getBody()).isNotNull();
+		return response.getBody();
+	}
+
+	private void assertUnchanged(ExportDto before) {
+		ExportDto after = export();
+		assertThat(after.metrics()).isEqualTo(before.metrics());
+		assertThat(after.entries()).isEqualTo(before.entries());
+	}
+
+}
