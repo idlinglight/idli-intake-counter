@@ -83,14 +83,17 @@ updates:
     cooldown:
       default-days: 3
     ignore:
-      # temurin/maven-temurin majors = Java version decisions (ADR-worthy),
+      # temurin majors = Java version decisions (ADR-worthy),
       # kept in sync with pom.xml <java.version> and setup-java in CI
       - dependency-name: eclipse-temurin
         update-types:
           - version-update:semver-major
+      # maven build image: Dependabot parses the compound tag so a temurin
+      # suffix move (3.9-eclipse-temurin-21 → 3-eclipse-temurin-26) arrives
+      # as a non-major "3.9 → 3" bump — i.e. a silent JDK switch (PR #1,
+      # closed). JDK channel is deliberate and synced with pom + runtime
+      # image: ignore ALL updates here, bumps are manual.
       - dependency-name: maven
-        update-types:
-          - version-update:semver-major
       # node: stays on the chosen major, kept in sync with setup-node's
       # node-version in frontend.yml and package.json engines
       - dependency-name: node
