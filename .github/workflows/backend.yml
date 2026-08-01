@@ -13,10 +13,12 @@ on:
       - 'build-image/**'
     paths:
       - 'backend/**'
+      - 'api/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - 'api/**'
       - '.github/workflows/backend.yml'
   workflow_dispatch:
 
@@ -37,6 +39,10 @@ jobs:
       # Testcontainers-based tests use the runner's Docker daemon
       - run: ./mvnw -B verify
         working-directory: backend
+      # The test suite exports target/openapi.json; drift against the
+      # committed contract fails here — fix: scripts/update-api-contract.sh
+      - name: API contract drift check
+        run: jq -S . backend/target/openapi.json | diff - api/openapi.json
 
   build-and-push:
     if: github.event_name != 'pull_request'

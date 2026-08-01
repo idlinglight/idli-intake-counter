@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
+import BackendStatus from './components/BackendStatus.vue'
 import HelloWorld from './components/HelloWorld.vue'
 </script>
 
@@ -14,6 +15,8 @@ import HelloWorld from './components/HelloWorld.vue'
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/about">About</RouterLink>
       </nav>
+
+      <BackendStatus />
     </div>
   </header>
 

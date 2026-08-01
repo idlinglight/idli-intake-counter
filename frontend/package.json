@@ -13,9 +13,12 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "generate:api": "openapi-typescript ../api/openapi.json -o src/api/schema.d.ts",
+    "lint:check": "oxlint . && eslint ."
   },
   "dependencies": {
+    "openapi-fetch": "^0.17.0",
     "pinia": "^4.0.2",
     "vue": "^3.5.40",
     "vue-router": "^5.2.0"
@@ -36,6 +39,7 @@
     "jiti": "^2.7.0",
     "jsdom": "^30.0.1",
     "npm-run-all2": "^9.0.2",
+    "openapi-typescript": "^7.13.0",
     "oxlint": "~1.76.0",
     "prettier": "3.9.6",
     "typescript": "~6.0.0",
@@ -47,5 +51,10 @@
   },
   "engines": {
     "node": "^22.18.0 || >=24.12.0"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

@@ -11,6 +11,7 @@ Spring Boot + Vue monorepo and deployed to k3s via a Helm chart published as an 
 |---|---|
 | `backend/` | Spring Boot API (Java 21, Maven, Postgres + Flyway) |
 | `frontend/` | Vue 3 SPA (TypeScript, Vite, Pinia, Vue Router) |
+| `api/` | Committed OpenAPI contract; drift-checked in CI, updated via `scripts/update-api-contract.sh` |
 | `deploy/chart/` | Helm chart, published to ghcr.io as an OCI artifact |
 | `docs/adr/` | Architecture decision records |
 | `docs/DESIGN.md` | Domain model and design principles |

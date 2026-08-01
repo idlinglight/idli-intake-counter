@@ -14,7 +14,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 @Import(TestcontainersConfiguration.class)
@@ -39,11 +42,15 @@ class HelloEndpointTest {
 	}
 
 	@Test
-	void openApiDocsAreServed() {
+	void openApiDocsAreServed() throws IOException {
 		ResponseEntity<String> response = restTemplate.getForEntity("/v3/api-docs", String.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(response.getBody()).contains("/api/hello");
+
+		// Exported for the committed contract at api/openapi.json:
+		// scripts/update-api-contract.sh copies it, CI diffs against it.
+		Files.writeString(Path.of("target/openapi.json"), response.getBody());
 	}
 
 }
