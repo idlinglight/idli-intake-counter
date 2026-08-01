@@ -1,0 +1,30 @@
+backend:
+  image:
+    repository: ghcr.io/idlinglight/idli-intake-counter-backend
+    # Pinned to a concrete sha-<short7> tag by the GitOps consumer.
+    tag: sha-0000000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+frontend:
+  image:
+    repository: ghcr.io/idlinglight/idli-intake-counter-frontend
+    tag: sha-0000000
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
+ingress:
+  enabled: true
+  # Empty string = cluster default ingress class.
+  className: ""
+  host: idli.localtest.me
+  # Optional list of ingress TLS blocks, passed through verbatim.
+  tls: []

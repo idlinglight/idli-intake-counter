@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "idli.fullname" . }}-frontend
+  labels:
+    {{- include "idli.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "idli.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "idli.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "idli.fullname" . }}-frontend
+  labels:
+    {{- include "idli.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  selector:
+    {{- include "idli.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
