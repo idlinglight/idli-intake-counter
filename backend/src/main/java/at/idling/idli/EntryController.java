@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api")
 public class EntryController {
@@ -33,6 +35,22 @@ public class EntryController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteEntry(@PathVariable long id) {
 		intakeService.delete(id);
+	}
+
+	// Logging a serving creates a GROUP of entries (one per composition
+	// metric), so it lives beside the entry endpoints, not the catalog ones.
+	@PostMapping("/servings/{id}/entries")
+	@ResponseStatus(HttpStatus.CREATED)
+	public EntryGroupDto createEntryGroup(@PathVariable long id, @Valid @RequestBody NewEntryGroupRequest request) {
+		return intakeService.logServing(id, request);
+	}
+
+	// UUID path variable: distinct from the numeric /entries/{id} space, and a
+	// malformed id is a 400 before the handler runs.
+	@DeleteMapping("/entry-groups/{groupId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deleteEntryGroup(@PathVariable UUID groupId) {
+		intakeService.deleteGroup(groupId);
 	}
 
 }

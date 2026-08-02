@@ -28,9 +28,16 @@
             "format": "int64",
             "type": "integer"
           },
+          "groupId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "id": {
             "format": "int64",
             "type": "integer"
+          },
+          "label": {
+            "type": "string"
           },
           "loggedAt": {
             "format": "date-time",
@@ -39,6 +46,28 @@
           "metricId": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EntryGroupDto": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryDto"
+            },
+            "type": "array"
+          },
+          "groupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -85,6 +114,13 @@
           "amount": {
             "format": "int64",
             "type": "integer"
+          },
+          "group": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
           },
           "loggedAt": {
             "format": "date-time",
@@ -311,6 +347,18 @@
         },
         "type": "object"
       },
+      "NewEntryGroupRequest": {
+        "properties": {
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "multiplier": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "NewEntryRequest": {
         "properties": {
           "amount": {
@@ -525,6 +573,30 @@
             "schema": {
               "format": "int64",
               "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "entry-controller"
+        ]
+      }
+    },
+    "/api/entry-groups/{groupId}": {
+      "delete": {
+        "operationId": "deleteEntryGroup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -887,6 +959,47 @@
         },
         "tags": [
           "item-controller"
+        ]
+      }
+    },
+    "/api/servings/{id}/entries": {
+      "post": {
+        "operationId": "createEntryGroup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewEntryGroupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryGroupDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "entry-controller"
         ]
       }
     }

@@ -28,15 +28,18 @@ converted only at input and display ([ADR-0002](adr/0002-canonical-units.md)):
 - **Serving** — a named quantity of an item in its basis unit, one number each:
   "whole bar" = 50 g, "half bar" = 25 g. No metric amounts of its own; 0..n per item.
 - **Entry** — timestamp + metric + amount (canonical unit). Logging a serving
-  *copies* the computed amounts (composition × quantity / basis, rounded) into
-  plain entries — history never re-reads the catalog
+  *copies* the computed amounts (composition × quantity × multiplier / basis,
+  rounded) into plain entries — history never re-reads the catalog
   ([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)), so items
-  and servings stay freely editable and deletable.
+  and servings stay freely editable and deletable. The entries of one log
+  action share a group id and a label snapshotted at log time
+  ("protein bar – half bar ×2"): one action, N entries, one row and one
+  atomic delete in the UI. Ad-hoc entries carry neither.
 - **Unit** — display unit with factor-to-canonical, per metric (kcal = 4.184 kJ).
   Sketched, not yet implemented.
 
 Metric, Item, Serving and Entry are implemented (see the Flyway migrations,
-which are the source of truth); serving *logging* arrives with the next slice.
+which are the source of truth).
 
 ## Recovery model
 
@@ -68,4 +71,5 @@ One responsive app; each screen is designed for its primary surface rather than 
 4. ✓ JSON export/import — pulled ahead of authoring: production held real data
    from day one, and the recovery story shouldn't lag it
 5. ✓ Items + servings + metric authoring (desktop surface), export formatVersion 2
-6. Serving logging, generalized mobile logging surface
+6. ✓ Serving logging + generalized mobile logging surface, export formatVersion 3
+7. Logging conveniences: favorites/repeat-last, budget glance, display units (kcal)

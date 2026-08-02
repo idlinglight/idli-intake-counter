@@ -1,6 +1,6 @@
 # ADR-0007: Snapshot entries, and import accepts every older format version
 
-Status: accepted, 2026-08-02
+Status: accepted, 2026-08-02; amended 2026-08-02
 
 ## Context
 
@@ -35,3 +35,15 @@ than silently truncated.
   one normalization step, once, in `ExportImportService`.
 - A restore is a restore: importing a version 1 file yields a database without
   items, because the file *is* the database (ADR-0004).
+
+## Amendment (2026-08-02)
+
+The snapshot grew two fields, still with zero catalog references: the entries
+of one serving-log action share a generated **group id** and a **label**
+composed at log time from the item and serving names (plus "×multiplier" when
+it isn't 1). The multiplier itself is never stored — it is baked into the
+computed amounts and the label. Export formatVersion 3 carries both as
+optional fields under the same accept-every-older-version policy. Group
+members remain plain rows: the UI deletes a group atomically, but an
+individual member stays deletable through the raw entry API — the group is a
+tag, not an aggregate.
