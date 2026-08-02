@@ -11,12 +11,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api")
 public class ExportImportController {
+
+	// Minute granularity: same-day exports get distinct filenames, so copying
+	// several into one archive never collides. Colon-free for filesystems.
+	private static final DateTimeFormatter EXPORT_FILENAME_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm");
 
 	// Lowercase constant so wire value, contract enum, and code read the same.
 	public enum ImportMode {
@@ -36,7 +41,8 @@ public class ExportImportController {
 	@GetMapping("/export")
 	public ResponseEntity<ExportDto> export() {
 		ExportDto export = exportImportService.export();
-		String filename = "idli-export-" + LocalDate.ofInstant(export.exportedAt(), zone) + ".json";
+		String filename = "idli-export-"
+				+ ZonedDateTime.ofInstant(export.exportedAt(), zone).format(EXPORT_FILENAME_STAMP) + ".json";
 		return ResponseEntity.ok()
 				.header(HttpHeaders.CONTENT_DISPOSITION,
 						ContentDisposition.attachment().filename(filename).build().toString())

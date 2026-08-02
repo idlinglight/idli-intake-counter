@@ -58,7 +58,7 @@ class ExportImportFlowTest {
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		ContentDisposition disposition = response.getHeaders().getContentDisposition();
 		assertThat(disposition.getType()).isEqualTo("attachment");
-		assertThat(disposition.getFilename()).matches("idli-export-\\d{4}-\\d{2}-\\d{2}\\.json");
+		assertThat(disposition.getFilename()).matches("idli-export-\\d{4}-\\d{2}-\\d{2}-\\d{4}\\.json");
 
 		ExportDto export = response.getBody();
 		assertThat(export).isNotNull();
