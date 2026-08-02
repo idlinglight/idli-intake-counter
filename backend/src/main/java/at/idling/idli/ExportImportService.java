@@ -25,8 +25,9 @@ public class ExportImportService {
 	/**
 	 * Bump when the file shape changes; export always emits this version.
 	 * Import also accepts every older version, normalizing on read (ADR-0007).
+	 * History: 1 = metrics + entries; 2 = items; 3 = entry label/group.
 	 */
-	static final int FORMAT_VERSION = 2;
+	static final int FORMAT_VERSION = 3;
 
 	private final MetricRepository metricRepository;
 	private final ItemRepository itemRepository;
@@ -82,7 +83,7 @@ public class ExportImportService {
 				.sorted(Comparator.comparing(Entry::getLoggedAt).thenComparing(Entry::getId))
 				.map(entry -> new ExportEntryDto(
 						requireMetricName(nameById, entry.getMetricId(), "entry " + entry.getId()),
-						entry.getAmount(), entry.getLoggedAt()))
+						entry.getAmount(), entry.getLoggedAt(), entry.getLabel(), entry.getGroupId()))
 				.toList();
 		return new ExportDto(FORMAT_VERSION, Instant.now(),
 				metrics.stream().map(metric -> new ExportMetricDto(metric.getName(), metric.getCanonicalUnit()))
@@ -94,7 +95,9 @@ public class ExportImportService {
 	public ImportSummaryDto importReplacing(ExportDto file) {
 		// All validation happens before the first delete; the surrounding
 		// transaction is the backstop, not the plan.
+		requireSupportedVersion(file);
 		List<ExportItemDto> items = normalizedItems(file);
+		requireEntryFieldsMatchVersion(file);
 		// Also guarded by @NotEmpty at the controller; kept here so no caller
 		// can apply a file that leaves the database metric-less. There is no
 		// import-free way to log anything then — metric authoring exists, but
@@ -137,6 +140,16 @@ public class ExportImportService {
 			if (!metricNames.contains(entry.metric())) {
 				throw new InvalidImportException("entry references unknown metric: " + entry.metric());
 			}
+			// Mirrors the DB CHECK (entry_group_label_together): rejecting here
+			// is a loud 400 with a reason; the constraint firing mid-import
+			// would be a 500.
+			if ((entry.label() == null) != (entry.group() == null)) {
+				throw new InvalidImportException(
+						"entry at " + entry.loggedAt() + " must carry label and group together");
+			}
+			if (entry.label() != null && entry.label().isBlank()) {
+				throw new InvalidImportException("entry at " + entry.loggedAt() + " has a blank label");
+			}
 		}
 
 		// Referencing tables first, then their targets.
@@ -161,32 +174,50 @@ public class ExportImportService {
 					.toList());
 		}
 		entryRepository.saveAll(file.entries().stream()
-				.map(entry -> new Entry(metricIdByName.get(entry.metric()), entry.amount(), entry.loggedAt()))
+				.map(entry -> new Entry(metricIdByName.get(entry.metric()), entry.amount(), entry.loggedAt(),
+						entry.group(), entry.label()))
 				.toList());
 		return new ImportSummaryDto(file.metrics().size(), items.size(), file.entries().size());
 	}
 
-	/**
-	 * The one place format history lives (ADR-0007): version 1 files carry no
-	 * items and normalize to an empty list; version 2 files must carry the
-	 * list. Anything else is not ours to read.
-	 */
-	private static List<ExportItemDto> normalizedItems(ExportDto file) {
+	// The three helpers below are the one place format history lives
+	// (ADR-0007): older versions normalize on read, and a file claiming an
+	// older version while carrying newer-version data is refused rather than
+	// silently truncated.
+
+	private static void requireSupportedVersion(ExportDto file) {
 		int version = file.formatVersion();
-		if (version == 1) {
+		if (version < 1 || version > FORMAT_VERSION) {
+			throw new InvalidImportException("unsupported formatVersion " + version
+					+ "; this build reads formatVersion 1, 2 and " + FORMAT_VERSION);
+		}
+	}
+
+	/** Version 1 files carry no items; every later version must carry the list. */
+	private static List<ExportItemDto> normalizedItems(ExportDto file) {
+		if (file.formatVersion() == 1) {
 			if (file.items() != null && !file.items().isEmpty()) {
 				throw new InvalidImportException("formatVersion 1 files cannot carry items");
 			}
 			return List.of();
 		}
-		if (version == FORMAT_VERSION) {
-			if (file.items() == null) {
-				throw new InvalidImportException("formatVersion 2 requires an items list");
-			}
-			return file.items();
+		if (file.items() == null) {
+			throw new InvalidImportException("formatVersion " + file.formatVersion() + " requires an items list");
 		}
-		throw new InvalidImportException("unsupported formatVersion " + file.formatVersion()
-				+ "; this build reads formatVersion 1 and " + FORMAT_VERSION);
+		return file.items();
+	}
+
+	/** Entry label/group arrived with version 3; older files cannot carry them. */
+	private static void requireEntryFieldsMatchVersion(ExportDto file) {
+		if (file.formatVersion() >= 3) {
+			return;
+		}
+		for (ExportEntryDto entry : file.entries()) {
+			if (entry.label() != null || entry.group() != null) {
+				throw new InvalidImportException("formatVersion " + file.formatVersion()
+						+ " files cannot carry entry labels or groups");
+			}
+		}
 	}
 
 	// Belt to the isolation level's braces: a null name would serialize into
