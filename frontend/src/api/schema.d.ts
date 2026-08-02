@@ -61,7 +61,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_2"];
+        post: operations["createEntry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -78,7 +78,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["deleteEntry"];
         options?: never;
         head?: never;
         patch?: never;
@@ -141,7 +141,7 @@ export interface paths {
         };
         get: operations["items"];
         put?: never;
-        post: operations["create_1"];
+        post: operations["createItem"];
         delete?: never;
         options?: never;
         head?: never;
@@ -156,9 +156,9 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put: operations["replace"];
+        put: operations["replaceItem"];
         post?: never;
-        delete: operations["delete"];
+        delete: operations["deleteItem"];
         options?: never;
         head?: never;
         patch?: never;
@@ -189,7 +189,7 @@ export interface paths {
         };
         get: operations["metrics"];
         put?: never;
-        post: operations["create"];
+        post: operations["createMetric"];
         delete?: never;
         options?: never;
         head?: never;
@@ -417,7 +417,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    createEntry: {
         parameters: {
             query?: never;
             header?: never;
@@ -441,7 +441,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    deleteEntry: {
         parameters: {
             query?: never;
             header?: never;
@@ -547,7 +547,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    createItem: {
         parameters: {
             query?: never;
             header?: never;
@@ -571,7 +571,7 @@ export interface operations {
             };
         };
     };
-    replace: {
+    replaceItem: {
         parameters: {
             query?: never;
             header?: never;
@@ -597,7 +597,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    deleteItem: {
         parameters: {
             query?: never;
             header?: never;
@@ -663,7 +663,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    createMetric: {
         parameters: {
             query?: never;
             header?: never;

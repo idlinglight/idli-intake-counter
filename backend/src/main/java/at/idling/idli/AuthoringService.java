@@ -1,6 +1,7 @@
 package at.idling.idli;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
@@ -41,6 +42,10 @@ public class AuthoringService {
 		return new MetricDto(saved.getId(), saved.getName(), saved.getCanonicalUnit());
 	}
 
+	// REPEATABLE_READ for the same reason as ExportImportService.export():
+	// the three findAll()s must share one snapshot, or an import committing
+	// between them leaves items rendered with empty or stale composition.
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public List<ItemDto> items() {
 		Map<Long, List<ItemAmount>> amountsByItemId = itemAmountRepository.findAll().stream()
 				.collect(Collectors.groupingBy(ItemAmount::getItemId));
@@ -123,16 +128,23 @@ public class AuthoringService {
 			if (!metricIds.add(amount.metricId())) {
 				throw new InvalidItemException("duplicate metric id in amounts: " + amount.metricId());
 			}
-			if (!metricRepository.existsById(amount.metricId())) {
+		}
+		// One batched lookup instead of one existsById per row; the loop below
+		// keeps the first-offender-in-request-order error semantics.
+		Set<Long> knownIds = metricRepository.findAllById(metricIds).stream()
+				.map(Metric::getId)
+				.collect(Collectors.toSet());
+		for (ItemAmountDto amount : request.amounts()) {
+			if (!knownIds.contains(amount.metricId())) {
 				throw new UnknownMetricException(amount.metricId());
 			}
 		}
 	}
 
 	private List<ItemAmount> saveAmounts(long itemId, ItemRequest request) {
-		return request.amounts().stream()
-				.map(amount -> itemAmountRepository.save(new ItemAmount(itemId, amount.metricId(), amount.amount())))
-				.toList();
+		return itemAmountRepository.saveAll(request.amounts().stream()
+				.map(amount -> new ItemAmount(itemId, amount.metricId(), amount.amount()))
+				.toList());
 	}
 
 	private ItemDto toDto(Item item, List<ItemAmount> amounts, List<Serving> servings) {

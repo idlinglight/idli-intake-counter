@@ -486,7 +486,7 @@
     },
     "/api/entries": {
       "post": {
-        "operationId": "create_2",
+        "operationId": "createEntry",
         "requestBody": {
           "content": {
             "application/json": {
@@ -516,7 +516,7 @@
     },
     "/api/entries/{id}": {
       "delete": {
-        "operationId": "delete_1",
+        "operationId": "deleteEntry",
         "parameters": [
           {
             "in": "path",
@@ -644,7 +644,7 @@
         ]
       },
       "post": {
-        "operationId": "create_1",
+        "operationId": "createItem",
         "requestBody": {
           "content": {
             "application/json": {
@@ -674,7 +674,7 @@
     },
     "/api/items/{id}": {
       "delete": {
-        "operationId": "delete",
+        "operationId": "deleteItem",
         "parameters": [
           {
             "in": "path",
@@ -696,7 +696,7 @@
         ]
       },
       "put": {
-        "operationId": "replace",
+        "operationId": "replaceItem",
         "parameters": [
           {
             "in": "path",
@@ -799,7 +799,7 @@
         ]
       },
       "post": {
-        "operationId": "create",
+        "operationId": "createMetric",
         "requestBody": {
           "content": {
             "application/json": {

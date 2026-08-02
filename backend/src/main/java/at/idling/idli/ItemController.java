@@ -31,18 +31,18 @@ public class ItemController {
 
 	@PostMapping("/items")
 	@ResponseStatus(HttpStatus.CREATED)
-	public ItemDto create(@Valid @RequestBody ItemRequest request) {
+	public ItemDto createItem(@Valid @RequestBody ItemRequest request) {
 		return authoringService.createItem(request);
 	}
 
 	@PutMapping("/items/{id}")
-	public ItemDto replace(@PathVariable long id, @Valid @RequestBody ItemRequest request) {
+	public ItemDto replaceItem(@PathVariable long id, @Valid @RequestBody ItemRequest request) {
 		return authoringService.replaceItem(id, request);
 	}
 
 	@DeleteMapping("/items/{id}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void delete(@PathVariable long id) {
+	public void deleteItem(@PathVariable long id) {
 		authoringService.deleteItem(id);
 	}
 

@@ -51,17 +51,23 @@ function removeRow(index: number) {
 
 // jsdom (and Enter-key submits in odd states) can bypass browser validation,
 // so the guard here is the one that counts.
+// Amounts are whole numbers in canonical units (ADR-0002/0008); the backend
+// rejects fractions rather than rounding, so the guard must match.
+function isWholePositive(value: number | null): boolean {
+  return value !== null && Number.isInteger(value) && value > 0
+}
+
 function submit() {
   formError.value = ''
-  const complete = rows.value.filter((row) => row.metricId !== null && (row.amount ?? 0) > 0)
+  const complete = rows.value.filter((row) => row.metricId !== null && isWholePositive(row.amount))
   if (
     !name.value ||
-    (basisAmount.value ?? 0) <= 0 ||
+    !isWholePositive(basisAmount.value) ||
     !basisUnit.value ||
     complete.length === 0 ||
     complete.length !== rows.value.length
   ) {
-    formError.value = 'name, basis and at least one complete amount row are required'
+    formError.value = 'name, basis and at least one complete amount row are required — whole numbers only'
     return
   }
   emit('submit', {

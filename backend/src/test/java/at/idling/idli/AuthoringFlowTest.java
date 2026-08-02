@@ -10,8 +10,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -153,6 +155,26 @@ class AuthoringFlowTest {
 			assertThat(restTemplate.postForEntity("/api/items", request, String.class).getStatusCode())
 					.as("item %s", request.name()).isEqualTo(HttpStatus.BAD_REQUEST);
 		}
+	}
+
+	@Test
+	void fractionalAmountsAreRejectedNotTruncated() {
+		// Guards the accept-float-as-int=false Jackson setting: without it,
+		// 30.5 would silently coerce to 30 in every Long field (authoring,
+		// servings, import) — the opposite of ADR-0007's "rejections stay loud".
+		MetricDto metric = createMetric("authoring-frac", "g");
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		String body = """
+				{"name": "authoring-item-frac", "basisAmount": 100, "basisUnit": "g",
+				 "amounts": [{"metricId": %d, "amount": 30.5}]}
+				""".formatted(metric.id());
+
+		ResponseEntity<String> response = restTemplate.postForEntity("/api/items",
+				new HttpEntity<>(body, headers), String.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(items()).noneMatch(candidate -> candidate.name().equals("authoring-item-frac"));
 	}
 
 	@Test

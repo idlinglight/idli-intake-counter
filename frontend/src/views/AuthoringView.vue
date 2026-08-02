@@ -43,6 +43,9 @@ async function refresh() {
     }
     metrics.value = metricsResult.data
     items.value = itemsResult.data
+    // A refresh that succeeded is the freshest truth — clear stale banners
+    // (e.g. a 404 from a delete that raced: the row is gone, all is well).
+    error.value = ''
   } catch {
     error.value = 'backend unreachable'
   }
@@ -54,25 +57,57 @@ function failureText(action: string, result: { error?: unknown; response: Respon
   return body?.message ? `${action} failed: ${body.message}` : `${action} failed (HTTP ${result.response.status})`
 }
 
-async function createMetric() {
+type MutationResult = { data?: unknown; error?: unknown; response: Response }
+
+/**
+ * The one envelope every mutation shares: error/busy bookkeeping, failure
+ * text, network-error catch, refresh. Deletes differ twice: success is a
+ * bodyless 204 (so failure is result.error, not missing data), and a failure
+ * still refreshes — a 404 means the row is already gone server-side.
+ */
+async function mutate(
+  action: string,
+  call: () => Promise<MutationResult>,
+  { onSuccess, isDelete = false }: { onSuccess?: () => void; isDelete?: boolean } = {},
+) {
   error.value = ''
   busy.value = true
   try {
-    const result = await api.POST('/api/metrics', {
-      body: { name: metricName.value, canonicalUnit: metricUnit.value },
-    })
-    if (!result.data) {
-      error.value = failureText('creating metric', result)
+    const result = await call()
+    const failed = isDelete ? Boolean(result.error) : !result.data
+    if (failed && !isDelete) {
+      error.value = failureText(action, result)
       return
     }
-    metricName.value = ''
-    metricUnit.value = ''
+    if (!failed) {
+      onSuccess?.()
+    }
     await refresh()
+    // After the refresh, so its success-clear cannot wipe an honest failure.
+    if (failed) {
+      error.value = failureText(action, result)
+    }
   } catch {
     error.value = 'backend unreachable'
   } finally {
     busy.value = false
   }
+}
+
+async function createMetric() {
+  await mutate(
+    'creating metric',
+    () =>
+      api.POST('/api/metrics', {
+        body: { name: metricName.value, canonicalUnit: metricUnit.value },
+      }),
+    {
+      onSuccess: () => {
+        metricName.value = ''
+        metricUnit.value = ''
+      },
+    },
+  )
 }
 
 function openItemForm(item: Item | null) {
@@ -86,42 +121,18 @@ function closeItemForm() {
   editingItem.value = null
 }
 
-async function submitNewItem(payload: ItemPayload) {
-  error.value = ''
-  busy.value = true
-  try {
-    const result = await api.POST('/api/items', { body: payload })
-    if (!result.data) {
-      error.value = failureText('creating item', result)
-      return
-    }
-    closeItemForm()
-    await refresh()
-  } catch {
-    error.value = 'backend unreachable'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function submitItemEdit(payload: ItemPayload) {
-  const id = editingItem.value?.id
-  if (id === undefined) return
-  error.value = ''
-  busy.value = true
-  try {
-    const result = await api.PUT('/api/items/{id}', { params: { path: { id } }, body: payload })
-    if (!result.data) {
-      error.value = failureText('saving item', result)
-      return
-    }
-    closeItemForm()
-    await refresh()
-  } catch {
-    error.value = 'backend unreachable'
-  } finally {
-    busy.value = false
-  }
+async function submitItem(payload: ItemPayload) {
+  // Editing an item without an id cannot be addressed; creating needs none.
+  const editId = editingItem.value?.id
+  if (editingItem.value !== null && editId === undefined) return
+  await mutate(
+    editId === undefined ? 'creating item' : 'saving item',
+    () =>
+      editId === undefined
+        ? api.POST('/api/items', { body: payload })
+        : api.PUT('/api/items/{id}', { params: { path: { id: editId } }, body: payload }),
+    { onSuccess: closeItemForm },
+  )
 }
 
 async function removeItem(item: Item) {
@@ -132,21 +143,9 @@ async function removeItem(item: Item) {
     return
   }
   armedDeleteItemId.value = null
-  error.value = ''
-  busy.value = true
-  try {
-    const result = await api.DELETE('/api/items/{id}', { params: { path: { id } } })
-    if (result.error) {
-      error.value = failureText('deleting item', result)
-    }
-  } catch {
-    error.value = 'backend unreachable'
-    busy.value = false
-    return
-  }
-  busy.value = false
-  // Refresh regardless: a 404 means the item is already gone server-side.
-  await refresh()
+  await mutate('deleting item', () => api.DELETE('/api/items/{id}', { params: { path: { id } } }), {
+    isDelete: true,
+  })
 }
 
 function openServingForm(item: Item, serving?: Serving) {
@@ -166,48 +165,30 @@ function closeServingForm() {
 
 async function submitServing() {
   const itemId = servingFormItemId.value
-  if (itemId === null || !servingName.value || (servingQuantity.value ?? 0) <= 0) return
-  const body = { name: servingName.value, quantity: servingQuantity.value as number }
-  error.value = ''
-  busy.value = true
-  try {
-    const result =
-      editingServingId.value === null
-        ? await api.POST('/api/items/{id}/servings', { params: { path: { id: itemId } }, body })
-        : await api.PUT('/api/servings/{id}', {
-            params: { path: { id: editingServingId.value } },
-            body,
-          })
-    if (!result.data) {
-      error.value = failureText('saving serving', result)
-      return
-    }
-    closeServingForm()
-    await refresh()
-  } catch {
-    error.value = 'backend unreachable'
-  } finally {
-    busy.value = false
-  }
+  // Whole numbers only — the backend rejects fractions rather than rounding.
+  const quantity = servingQuantity.value
+  if (itemId === null || !servingName.value || quantity === null || !Number.isInteger(quantity) || quantity <= 0)
+    return
+  const body = { name: servingName.value, quantity }
+  const servingId = editingServingId.value
+  await mutate(
+    'saving serving',
+    () =>
+      servingId === null
+        ? api.POST('/api/items/{id}/servings', { params: { path: { id: itemId } }, body })
+        : api.PUT('/api/servings/{id}', { params: { path: { id: servingId } }, body }),
+    { onSuccess: closeServingForm },
+  )
 }
 
 async function removeServing(serving: Serving) {
   const id = serving.id
   if (id === undefined) return
-  error.value = ''
-  busy.value = true
-  try {
-    const result = await api.DELETE('/api/servings/{id}', { params: { path: { id } } })
-    if (result.error) {
-      error.value = failureText('deleting serving', result)
-    }
-  } catch {
-    error.value = 'backend unreachable'
-    busy.value = false
-    return
-  }
-  busy.value = false
-  await refresh()
+  await mutate(
+    'deleting serving',
+    () => api.DELETE('/api/servings/{id}', { params: { path: { id } } }),
+    { isDelete: true },
+  )
 }
 
 /** "energy 2281 kJ, protein 30 g" — the composition as entered, per basis. */
@@ -299,7 +280,7 @@ onMounted(refresh)
         v-if="itemFormOpen && editingItem === null"
         :metrics="metrics"
         :busy="busy"
-        @submit="submitNewItem"
+        @submit="submitItem"
         @cancel="closeItemForm"
       />
 
@@ -310,7 +291,7 @@ onMounted(refresh)
           :metrics="metrics"
           :initial="item"
           :busy="busy"
-          @submit="submitItemEdit"
+          @submit="submitItem"
           @cancel="closeItemForm"
         />
         <template v-else>
@@ -324,6 +305,7 @@ onMounted(refresh)
               type="button"
               class="ghost danger-text"
               data-testid="delete-item"
+              :disabled="busy"
               @click="removeItem(item)"
             >
               {{ armedDeleteItemId === item.id ? 'really delete? (takes its servings)' : 'delete' }}
@@ -348,6 +330,7 @@ onMounted(refresh)
                 type="button"
                 class="ghost danger-text"
                 data-testid="delete-serving"
+                :disabled="busy"
                 @click="removeServing(serving)"
               >
                 delete
@@ -522,6 +505,13 @@ input {
 
 .ghost:hover {
   opacity: 1;
+}
+
+/* Disabled while a mutation is in flight — a double-click on delete must not
+   fire a second request that 404s and reports a phantom failure. */
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .danger-text {

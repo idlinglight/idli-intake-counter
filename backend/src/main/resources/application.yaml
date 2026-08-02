@@ -1,6 +1,13 @@
 spring:
   application:
     name: idli-backend
+  jackson:
+    deserialization:
+      # Jackson's default coerces 30.5 into a Long field as 30 — a silently
+      # truncated amount on authoring and, worse, on restore (ADR-0007 promises
+      # rejections stay loud). Off: fractional JSON numbers for integer fields
+      # are a 400, not a rounding.
+      accept-float-as-int: false
   web:
     error:
       # The default ("never") strips exception messages from error bodies.

@@ -30,7 +30,7 @@ public class MetricController {
 
 	@PostMapping("/metrics")
 	@ResponseStatus(HttpStatus.CREATED)
-	public MetricDto create(@Valid @RequestBody NewMetricRequest request) {
+	public MetricDto createMetric(@Valid @RequestBody NewMetricRequest request) {
 		return authoringService.createMetric(request);
 	}
 

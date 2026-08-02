@@ -22,13 +22,16 @@ public class EntryController {
 
 	@PostMapping("/entries")
 	@ResponseStatus(HttpStatus.CREATED)
-	public EntryDto create(@Valid @RequestBody NewEntryRequest request) {
+	// Entity-qualified method names, deliberately: springdoc derives operationIds
+	// from them and collision-suffixes duplicates (create_2, delete_1) in scan
+	// order, silently reshuffling the contract whenever a controller is added.
+	public EntryDto createEntry(@Valid @RequestBody NewEntryRequest request) {
 		return intakeService.log(request);
 	}
 
 	@DeleteMapping("/entries/{id}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void delete(@PathVariable long id) {
+	public void deleteEntry(@PathVariable long id) {
 		intakeService.delete(id);
 	}
 
