@@ -4,7 +4,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.ListCrudRepository;
 
+import java.util.List;
+
 public interface ItemAmountRepository extends ListCrudRepository<ItemAmount, Long> {
+
+	List<ItemAmount> findByItemId(long itemId);
 
 	// Both bulk deletes are deliberately not @Transactional: they only ever
 	// run inside a service transaction (item replace, import) and @Modifying
