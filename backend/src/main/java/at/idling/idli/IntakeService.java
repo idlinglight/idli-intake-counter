@@ -126,11 +126,20 @@ public class IntakeService {
 
 	/** composition × quantity × multiplier ÷ basis, rounded half-up to the canonical integer. */
 	private long computedAmount(ItemAmount amount, Serving serving, BigDecimal multiplier, Item item, String label) {
-		long computed = BigDecimal.valueOf(amount.getAmount())
-				.multiply(BigDecimal.valueOf(serving.getQuantity()))
-				.multiply(multiplier)
-				.divide(BigDecimal.valueOf(item.getBasisAmount()), 0, RoundingMode.HALF_UP)
-				.longValueExact();
+		long computed;
+		try {
+			computed = BigDecimal.valueOf(amount.getAmount())
+					.multiply(BigDecimal.valueOf(serving.getQuantity()))
+					.multiply(multiplier)
+					.divide(BigDecimal.valueOf(item.getBasisAmount()), 0, RoundingMode.HALF_UP)
+					.longValueExact();
+		} catch (ArithmeticException e) {
+			// Catalog amounts are only checked @Positive, so absurd values can
+			// overflow long here — same contract as rounding to 0: loud 400,
+			// not a 500 (ADR-0007: a rejection must be a no-op).
+			throw new InvalidEntryGroupException(
+					"logging '" + label + "' would overflow a metric amount; refusing");
+		}
 		if (computed == 0) {
 			// entry.amount has check (amount > 0); silently dropping the metric
 			// instead would log less than the user believes (ADR-0007: loud).

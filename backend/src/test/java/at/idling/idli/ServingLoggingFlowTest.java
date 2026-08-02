@@ -218,27 +218,15 @@ class ServingLoggingFlowTest {
 	}
 
 	private MetricDto createMetric(String name, String canonicalUnit) {
-		ResponseEntity<MetricDto> response = restTemplate.postForEntity("/api/metrics",
-				new NewMetricRequest(name, canonicalUnit), MetricDto.class);
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-		assertThat(response.getBody()).isNotNull();
-		return response.getBody();
+		return TestCatalog.createMetric(restTemplate, name, canonicalUnit);
 	}
 
 	private ItemDto createItem(String name, Long basisAmount, String basisUnit, List<ItemAmountDto> amounts) {
-		ResponseEntity<ItemDto> response = restTemplate.postForEntity("/api/items",
-				new ItemRequest(name, basisAmount, basisUnit, amounts), ItemDto.class);
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-		assertThat(response.getBody()).isNotNull();
-		return response.getBody();
+		return TestCatalog.createItem(restTemplate, name, basisAmount, basisUnit, amounts);
 	}
 
 	private ServingDto addServing(long itemId, String name, Long quantity) {
-		ResponseEntity<ServingDto> response = restTemplate.postForEntity("/api/items/" + itemId + "/servings",
-				new ServingRequest(name, quantity), ServingDto.class);
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-		assertThat(response.getBody()).isNotNull();
-		return response.getBody();
+		return TestCatalog.addServing(restTemplate, itemId, name, quantity);
 	}
 
 	private EntryGroupDto logServing(long servingId, NewEntryGroupRequest request) {

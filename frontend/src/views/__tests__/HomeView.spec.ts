@@ -252,18 +252,20 @@ describe('HomeView', () => {
     dayView = {
       ...dayView,
       entries: [
+        // The real day endpoint orders loggedAt DESC, id DESC — the group's
+        // members arrive id-reversed relative to creation order.
         {
-          id: 21,
-          metricId: 2,
-          amount: 1141,
+          id: 22,
+          metricId: 3,
+          amount: 15,
           loggedAt: '2026-08-01T09:15:00',
           groupId: 'abc-123',
           label: 'protein bar – half bar ×2',
         },
         {
-          id: 22,
-          metricId: 3,
-          amount: 15,
+          id: 21,
+          metricId: 2,
+          amount: 1141,
           loggedAt: '2026-08-01T09:15:00',
           groupId: 'abc-123',
           label: 'protein bar – half bar ×2',

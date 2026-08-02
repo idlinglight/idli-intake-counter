@@ -80,7 +80,14 @@ const dayRows = computed<DayRow[]>(() => {
   }
   for (const row of rows) {
     if (row.groupId) {
-      row.amounts = (groupEntries.get(row.groupId) ?? []).map(entryText).join(', ')
+      // The day endpoint returns id-DESC within a shared timestamp; re-sort
+      // ascending so the row lists amounts in the order the log action
+      // created them (metricId ASC — the EntryGroupDto contract).
+      row.amounts = (groupEntries.get(row.groupId) ?? [])
+        .slice()
+        .sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+        .map(entryText)
+        .join(', ')
     }
   }
   return rows
@@ -115,17 +122,22 @@ async function load() {
       api.GET('/api/metrics'),
       api.GET('/api/items'),
     ])
-    if (!metricsResult.data || !itemsResult.data) {
+    if (!metricsResult.data) {
       error.value = 'backend unreachable'
       return
     }
     metrics.value = metricsResult.data
-    items.value = itemsResult.data
+    // Items only power the serving surface — a failed items fetch must not
+    // take down water logging and the day list with it.
+    items.value = itemsResult.data ?? []
     if (waterMetric.value?.id === undefined) {
       error.value = 'no "water" metric configured'
       return
     }
     await refreshDay()
+    if (!itemsResult.data) {
+      error.value = 'could not load items'
+    }
   } catch {
     error.value = 'backend unreachable'
   }
@@ -152,18 +164,29 @@ async function quickLog(amount: number) {
 
 async function logServing(servingId: number | undefined) {
   if (servingId === undefined) return
+  // A cleared input leaves '' behind (v-model.number keeps unparseable raw
+  // values) — sending it would silently log at ×1. Refuse loudly instead.
+  if (typeof multiplier.value !== 'number' || !Number.isFinite(multiplier.value)) {
+    error.value = 'enter a multiplier before logging'
+    return
+  }
   error.value = ''
   try {
     const body = multiplier.value === 1 ? {} : { multiplier: multiplier.value }
-    const { error: postError } = await api.POST('/api/servings/{id}/entries', {
+    const { error: postError, response } = await api.POST('/api/servings/{id}/entries', {
       params: { path: { id: servingId } },
       body,
     })
     if (postError) {
       // The backend's reason is user-meaningful here (e.g. an amount that
-      // would round to zero) — show it when present.
+      // would round to zero) — show it when present, mirroring
+      // AuthoringView's failureText fallback otherwise.
       const message = (postError as { message?: string }).message
-      error.value = message ? `logging failed: ${message}` : 'logging failed'
+      // The contract declares only the 201 response, so TS narrows the error
+      // branch's `response` to never — widen it back to the real Response.
+      error.value = message
+        ? `logging failed: ${message}`
+        : `logging failed (HTTP ${(response as Response | undefined)?.status})`
       return
     }
   } catch {

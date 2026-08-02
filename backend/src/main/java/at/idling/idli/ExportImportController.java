@@ -19,8 +19,9 @@ import java.time.format.DateTimeFormatter;
 @RequestMapping("/api")
 public class ExportImportController {
 
-	// Minute granularity: same-day exports get distinct filenames, so copying
-	// several into one archive never collides. Colon-free for filesystems.
+	// Minute granularity: same-day exports a minute apart get distinct
+	// filenames, so copying several into one archive doesn't collide (two
+	// within one minute still would). Colon-free for filesystems.
 	private static final DateTimeFormatter EXPORT_FILENAME_STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm");
 
 	// Lowercase constant so wire value, contract enum, and code read the same.

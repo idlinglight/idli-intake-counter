@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -136,6 +137,11 @@ public class ExportImportService {
 				}
 			}
 		}
+		// One serving-log action means one label and one timestamp per group —
+		// the write path guarantees it, so import must too, or the UI's
+		// one-row-one-atomic-delete rendering silently breaks (a group split
+		// across days would delete entries the user never saw).
+		Map<UUID, ExportEntryDto> groupRepresentative = new HashMap<>();
 		for (ExportEntryDto entry : file.entries()) {
 			if (!metricNames.contains(entry.metric())) {
 				throw new InvalidImportException("entry references unknown metric: " + entry.metric());
@@ -149,6 +155,14 @@ public class ExportImportService {
 			}
 			if (entry.label() != null && entry.label().isBlank()) {
 				throw new InvalidImportException("entry at " + entry.loggedAt() + " has a blank label");
+			}
+			if (entry.group() != null) {
+				ExportEntryDto first = groupRepresentative.putIfAbsent(entry.group(), entry);
+				if (first != null
+						&& (!first.label().equals(entry.label()) || !first.loggedAt().equals(entry.loggedAt()))) {
+					throw new InvalidImportException(
+							"entries of group " + entry.group() + " disagree on label or loggedAt");
+				}
 			}
 		}
 

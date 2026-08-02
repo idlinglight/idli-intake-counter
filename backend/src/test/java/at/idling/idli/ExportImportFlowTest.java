@@ -230,6 +230,29 @@ class ExportImportFlowTest {
 	}
 
 	@Test
+	void groupMembersMustAgreeOnLabelAndLoggedAt() {
+		ExportDto before = export();
+
+		UUID group = UUID.randomUUID();
+		ExportEntryDto member = new ExportEntryDto("water", 100L, Instant.parse("2026-04-04T09:00:00Z"),
+				"one action", group);
+		ExportEntryDto otherLabel = new ExportEntryDto("water", 100L, Instant.parse("2026-04-04T09:00:00Z"),
+				"another action", group);
+		ExportEntryDto otherTime = new ExportEntryDto("water", 100L, Instant.parse("2026-04-05T09:00:00Z"),
+				"one action", group);
+
+		for (ExportEntryDto broken : new ExportEntryDto[] { otherLabel, otherTime }) {
+			ExportDto file = new ExportDto(3, null, List.of(WATER), List.of(), List.of(member, broken));
+			ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace", file,
+					String.class);
+			assertThat(response.getStatusCode()).as("label = %s, loggedAt = %s", broken.label(), broken.loggedAt())
+					.isEqualTo(HttpStatus.BAD_REQUEST);
+			assertThat(response.getBody()).contains("disagree on label or loggedAt");
+		}
+		assertUnchanged(before);
+	}
+
+	@Test
 	void formatVersion2FilesRequireTheItemsList() {
 		ExportDto before = export();
 
