@@ -4,8 +4,10 @@ Self-hosted intake tracker — energy, water, anything you define as a metric �
 Spring Boot + Vue monorepo and deployed to k3s via a Helm chart published as an OCI artifact.
 
 **Status: early but functional.** Water logging works end to end behind a
-single-user login, and full JSON export/import is in place as the recovery story
-(ADR-0004); items/portions are next (see [docs/DESIGN.md](docs/DESIGN.md)).
+single-user login, full JSON export/import is in place as the recovery story
+(ADR-0004), and the catalog — metrics, items with per-basis composition, servings —
+is authorable in-app (ADR-0008). Next: logging servings from the mobile surface
+(see [docs/DESIGN.md](docs/DESIGN.md)).
 
 ## Layout
 

@@ -16,9 +16,18 @@ vi.mock('@/api/client', () => ({
 }))
 
 const exportFile = {
-  formatVersion: 1,
+  formatVersion: 2,
   exportedAt: '2026-08-01T12:00:00Z',
   metrics: [{ name: 'water', canonicalUnit: 'mL' }],
+  items: [
+    {
+      name: 'water bottle',
+      basisAmount: 100,
+      basisUnit: 'mL',
+      amounts: [{ metric: 'water', amount: 100 }],
+      servings: [{ name: 'whole bottle', quantity: 500 }],
+    },
+  ],
   entries: [{ metric: 'water', amount: 250, loggedAt: '2026-08-01T08:00:00Z' }],
 }
 
@@ -37,7 +46,7 @@ beforeEach(() => {
       headers: { 'content-disposition': 'attachment; filename="idli-export-2026-08-01.json"' },
     }),
   })
-  postMock.mockResolvedValue({ data: { metrics: 1, entries: 1 }, response: new Response() })
+  postMock.mockResolvedValue({ data: { metrics: 1, items: 1, entries: 1 }, response: new Response() })
 })
 
 afterEach(() => {
@@ -91,7 +100,23 @@ describe('DataView', () => {
     const confirm = wrapper.get('[data-testid="import-confirm"]')
     expect(confirm.text()).toContain('export.json')
     expect(confirm.text()).toContain('1 metrics')
+    expect(confirm.text()).toContain('1 items')
     expect(confirm.text()).toContain('1 entries')
+    expect(confirm.text()).toContain('formatVersion 2')
+  })
+
+  it('previews a formatVersion 1 file (no items key) as zero items', async () => {
+    const wrapper = mount(DataView)
+    const v1File = {
+      formatVersion: 1,
+      metrics: [{ name: 'water', canonicalUnit: 'mL' }],
+      entries: [{ metric: 'water', amount: 250, loggedAt: '2026-08-01T08:00:00Z' }],
+    }
+
+    await chooseFile(wrapper, JSON.stringify(v1File))
+
+    const confirm = wrapper.get('[data-testid="import-confirm"]')
+    expect(confirm.text()).toContain('0 items')
     expect(confirm.text()).toContain('formatVersion 1')
   })
 
@@ -109,7 +134,7 @@ describe('DataView', () => {
       params: { query: { mode: 'replace' } },
       body: exportFile,
     })
-    expect(wrapper.text()).toContain('import done: 1 metrics, 1 entries')
+    expect(wrapper.text()).toContain('import done: 1 metrics, 1 items, 1 entries')
     // The confirmation is spent; a re-import needs a fresh file choice.
     expect(wrapper.find('[data-testid="import-confirm"]').exists()).toBe(false)
   })

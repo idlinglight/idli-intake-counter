@@ -62,17 +62,23 @@ class ExportImportFlowTest {
 
 		ExportDto export = response.getBody();
 		assertThat(export).isNotNull();
-		assertThat(export.formatVersion()).isEqualTo(1);
+		assertThat(export.formatVersion()).isEqualTo(2);
 		assertThat(export.exportedAt()).isNotNull();
 		assertThat(export.metrics()).contains(WATER);
+		assertThat(export.items()).isNotNull();
 		assertThat(export.entries())
 				.contains(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z")));
 	}
 
 	@Test
 	void importReplacesEverythingAndRoundTrips() {
-		ExportDto file = new ExportDto(1, Instant.parse("2026-04-04T20:00:00Z"),
-				List.of(WATER, new ExportMetricDto("energy", "kJ")),
+		// Amounts are listed sorted by metric name and servings in creation
+		// order — the orders export emits — so re-export equality can be exact.
+		ExportDto file = new ExportDto(2, Instant.parse("2026-04-04T20:00:00Z"),
+				List.of(WATER, new ExportMetricDto("energy", "kJ"), new ExportMetricDto("protein", "g")),
+				List.of(new ExportItemDto("protein bar", 100L, "g",
+						List.of(new ExportItemAmountDto("energy", 2281L), new ExportItemAmountDto("protein", 30L)),
+						List.of(new ExportServingDto("whole bar", 50L), new ExportServingDto("half bar", 25L)))),
 				List.of(new ExportEntryDto("water", 300L, Instant.parse("2026-04-04T07:00:00Z")),
 						new ExportEntryDto("energy", 1500L, Instant.parse("2026-04-04T12:00:00Z"))));
 
@@ -80,11 +86,12 @@ class ExportImportFlowTest {
 				file, ImportSummaryDto.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(response.getBody()).isEqualTo(new ImportSummaryDto(2, 2));
+		assertThat(response.getBody()).isEqualTo(new ImportSummaryDto(3, 1, 2));
 
-		// The re-export IS the round-trip proof: same metrics, same entries.
+		// The re-export IS the round-trip proof: same metrics, items, entries.
 		ExportDto reExported = export();
 		assertThat(reExported.metrics()).isEqualTo(file.metrics());
+		assertThat(reExported.items()).isEqualTo(file.items());
 		assertThat(reExported.entries()).isEqualTo(file.entries());
 	}
 
@@ -109,6 +116,68 @@ class ExportImportFlowTest {
 	}
 
 	@Test
+	void formatVersion1FilesAreStillAccepted() {
+		// The backup taken the day before this build shipped must restore —
+		// otherwise the recovery story has a gap exactly at upgrade time
+		// (ADR-0007). Version 1 files have no items key at all.
+		ResponseEntity<ImportSummaryDto> response = restTemplate.postForEntity("/api/import?mode=replace",
+				v1File(), ImportSummaryDto.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(response.getBody()).isEqualTo(new ImportSummaryDto(1, 0, 1));
+
+		ExportDto reExported = export();
+		assertThat(reExported.formatVersion()).isEqualTo(2);
+		assertThat(reExported.metrics()).isEqualTo(List.of(WATER));
+		assertThat(reExported.items()).isEmpty();
+		assertThat(reExported.entries())
+				.isEqualTo(List.of(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z"))));
+	}
+
+	@Test
+	void formatVersion1ImportReplacesItemsToo() {
+		// A restore is a restore: the file IS the database, and a v1 file
+		// holds no items (ADR-0007).
+		importReplacing(new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("doomed item", 100L, "g",
+						List.of(new ExportItemAmountDto("water", 100L)), List.of())),
+				List.of()));
+		assertThat(export().items()).hasSize(1);
+
+		importReplacing(v1File());
+
+		assertThat(export().items()).isEmpty();
+	}
+
+	@Test
+	void formatVersion1FilesCarryingItemsAreRejected() {
+		ExportDto before = export();
+
+		ExportDto file = new ExportDto(1, null, List.of(WATER),
+				List.of(new ExportItemDto("smuggled", 100L, "g",
+						List.of(new ExportItemAmountDto("water", 100L)), List.of())),
+				List.of());
+		ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace", file,
+				String.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).contains("formatVersion 1 files cannot carry items");
+		assertUnchanged(before);
+	}
+
+	@Test
+	void formatVersion2FilesRequireTheItemsList() {
+		ExportDto before = export();
+
+		ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace",
+				new ExportDto(2, null, List.of(WATER), null, List.of()), String.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(response.getBody()).contains("formatVersion 2 requires an items list");
+		assertUnchanged(before);
+	}
+
+	@Test
 	void importWithoutExplicitReplaceModeIsRejected() {
 		ExportDto before = export();
 
@@ -124,9 +193,9 @@ class ExportImportFlowTest {
 	void unsupportedFormatVersionIsRejectedWithTheReason() {
 		ExportDto before = export();
 
-		for (int version : new int[] { 0, 2 }) {
+		for (int version : new int[] { 0, 3 }) {
 			ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace",
-					new ExportDto(version, null, List.of(WATER), List.of()), String.class);
+					new ExportDto(version, null, List.of(WATER), List.of(), List.of()), String.class);
 			assertThat(response.getStatusCode()).as("formatVersion = %s", version)
 					.isEqualTo(HttpStatus.BAD_REQUEST);
 			// include-message=always: on a failing restore the reason IS the
@@ -134,7 +203,7 @@ class ExportImportFlowTest {
 			assertThat(response.getBody()).contains("unsupported formatVersion " + version);
 		}
 		assertThat(restTemplate.postForEntity("/api/import?mode=replace",
-				new ExportDto(null, null, List.of(WATER), List.of()), String.class).getStatusCode())
+				new ExportDto(null, null, List.of(WATER), List.of(), List.of()), String.class).getStatusCode())
 				.isEqualTo(HttpStatus.BAD_REQUEST);
 
 		assertUnchanged(before);
@@ -146,8 +215,8 @@ class ExportImportFlowTest {
 		ExportDto before = export();
 
 		// Well-formed, passes every other validation — but applying it would
-		// leave a database no in-app gesture can put a metric back into.
-		ExportDto file = new ExportDto(1, null, List.of(), List.of());
+		// leave a database no import-free gesture can log anything in.
+		ExportDto file = new ExportDto(2, null, List.of(), List.of(), List.of());
 		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
 				.isEqualTo(HttpStatus.BAD_REQUEST);
 
@@ -159,7 +228,7 @@ class ExportImportFlowTest {
 		importReplacing(validFile());
 		ExportDto before = export();
 
-		ExportDto file = new ExportDto(1, null, List.of(WATER),
+		ExportDto file = new ExportDto(2, null, List.of(WATER), List.of(),
 				List.of(new ExportEntryDto("water", 100L, Instant.parse("2026-04-04T09:00:00Z")),
 						new ExportEntryDto("caffeine", 80L, Instant.parse("2026-04-04T09:30:00Z"))));
 		ResponseEntity<String> response = restTemplate.postForEntity("/api/import?mode=replace", file,
@@ -172,8 +241,46 @@ class ExportImportFlowTest {
 	}
 
 	@Test
+	void importIsAtomicWhenAnItemIsInvalid() {
+		importReplacing(validFile());
+		ExportDto before = export();
+
+		ExportDto unknownMetric = new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("bar", 100L, "g",
+						List.of(new ExportItemAmountDto("caffeine", 80L)), List.of())),
+				List.of());
+		ResponseEntity<String> unknownResponse = restTemplate.postForEntity("/api/import?mode=replace",
+				unknownMetric, String.class);
+		assertThat(unknownResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+		assertThat(unknownResponse.getBody()).contains("item 'bar' references unknown metric: caffeine");
+
+		ExportDto duplicateItems = new ExportDto(2, null, List.of(WATER),
+				List.of(itemOf("twin"), itemOf("twin")), List.of());
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", duplicateItems, String.class)
+				.getBody()).contains("duplicate item name: twin");
+
+		ExportDto duplicateAmountMetric = new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("bar", 100L, "g",
+						List.of(new ExportItemAmountDto("water", 100L), new ExportItemAmountDto("water", 200L)),
+						List.of())),
+				List.of());
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", duplicateAmountMetric, String.class)
+				.getBody()).contains("item 'bar' lists metric more than once: water");
+
+		ExportDto duplicateServings = new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("bar", 100L, "g", List.of(new ExportItemAmountDto("water", 100L)),
+						List.of(new ExportServingDto("glass", 250L), new ExportServingDto("glass", 100L)))),
+				List.of());
+		assertThat(restTemplate.postForEntity("/api/import?mode=replace", duplicateServings, String.class)
+				.getBody()).contains("item 'bar' has duplicate serving name: glass");
+
+		assertUnchanged(before);
+	}
+
+	@Test
 	void duplicateMetricNamesAreRejected() {
-		ExportDto file = new ExportDto(1, null, List.of(WATER, new ExportMetricDto("water", "L")), List.of());
+		ExportDto file = new ExportDto(2, null, List.of(WATER, new ExportMetricDto("water", "L")), List.of(),
+				List.of());
 
 		assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class).getStatusCode())
 				.isEqualTo(HttpStatus.BAD_REQUEST);
@@ -181,15 +288,23 @@ class ExportImportFlowTest {
 
 	@Test
 	void malformedFilesAreRejectedByValidation() {
-		ExportDto blankMetricName = new ExportDto(1, null, List.of(new ExportMetricDto(" ", "mL")), List.of());
-		ExportDto nonPositiveAmount = new ExportDto(1, null, List.of(WATER),
+		ExportDto blankMetricName = new ExportDto(2, null, List.of(new ExportMetricDto(" ", "mL")), List.of(),
+				List.of());
+		ExportDto nonPositiveAmount = new ExportDto(2, null, List.of(WATER), List.of(),
 				List.of(new ExportEntryDto("water", 0L, Instant.parse("2026-04-04T09:00:00Z"))));
-		ExportDto missingLoggedAt = new ExportDto(1, null, List.of(WATER),
+		ExportDto missingLoggedAt = new ExportDto(2, null, List.of(WATER), List.of(),
 				List.of(new ExportEntryDto("water", 100L, null)));
-		ExportDto missingLists = new ExportDto(1, null, null, null);
+		ExportDto missingLists = new ExportDto(2, null, null, null, null);
+		ExportDto blankItemName = new ExportDto(2, null, List.of(WATER), List.of(itemOf(" ")), List.of());
+		ExportDto emptyItemAmounts = new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("bar", 100L, "g", List.of(), List.of())), List.of());
+		ExportDto nonPositiveServing = new ExportDto(2, null, List.of(WATER),
+				List.of(new ExportItemDto("bar", 100L, "g", List.of(new ExportItemAmountDto("water", 100L)),
+						List.of(new ExportServingDto("glass", 0L)))),
+				List.of());
 
 		for (ExportDto file : new ExportDto[] { blankMetricName, nonPositiveAmount, missingLoggedAt,
-				missingLists }) {
+				missingLists, blankItemName, emptyItemAmounts, nonPositiveServing }) {
 			assertThat(restTemplate.postForEntity("/api/import?mode=replace", file, String.class)
 					.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 		}
@@ -197,8 +312,19 @@ class ExportImportFlowTest {
 
 	/** A minimal valid file; always contains the water metric (shared DB, see class comment). */
 	private ExportDto validFile() {
-		return new ExportDto(1, Instant.parse("2026-04-04T20:00:00Z"), List.of(WATER),
+		return new ExportDto(2, Instant.parse("2026-04-04T20:00:00Z"), List.of(WATER), List.of(),
 				List.of(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z"))));
+	}
+
+	/** What a real pre-items backup looks like: formatVersion 1, no items key. */
+	private ExportDto v1File() {
+		return new ExportDto(1, Instant.parse("2026-04-04T20:00:00Z"), List.of(WATER), null,
+				List.of(new ExportEntryDto("water", 250L, Instant.parse("2026-04-04T08:00:00Z"))));
+	}
+
+	/** A minimal well-formed item referencing only the water metric. */
+	private static ExportItemDto itemOf(String name) {
+		return new ExportItemDto(name, 100L, "g", List.of(new ExportItemAmountDto("water", 100L)), List.of());
 	}
 
 	private void importReplacing(ExportDto file) {
@@ -217,6 +343,7 @@ class ExportImportFlowTest {
 	private void assertUnchanged(ExportDto before) {
 		ExportDto after = export();
 		assertThat(after.metrics()).isEqualTo(before.metrics());
+		assertThat(after.items()).isEqualTo(before.items());
 		assertThat(after.entries()).isEqualTo(before.entries());
 	}
 

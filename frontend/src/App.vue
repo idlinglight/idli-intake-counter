@@ -28,6 +28,7 @@ async function logOut() {
     <div class="wrapper">
       <nav v-if="auth.authenticated">
         <RouterLink to="/">Home</RouterLink>
+        <RouterLink to="/authoring">Authoring</RouterLink>
         <RouterLink to="/data">Data</RouterLink>
         <RouterLink to="/about">About</RouterLink>
       </nav>

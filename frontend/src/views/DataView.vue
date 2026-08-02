@@ -92,7 +92,7 @@ async function confirmImport() {
       error.value = body?.message ? `import failed: ${body.message}` : `import failed (HTTP ${status})`
       return
     }
-    notice.value = `import done: ${result.data.metrics ?? 0} metrics, ${result.data.entries ?? 0} entries`
+    notice.value = `import done: ${result.data.metrics ?? 0} metrics, ${result.data.items ?? 0} items, ${result.data.entries ?? 0} entries`
     pendingFile.value = null
     pendingName.value = ''
   } catch {
@@ -113,8 +113,8 @@ async function confirmImport() {
     <section class="block">
       <h2 class="heading">Export</h2>
       <p class="hint">
-        Downloads everything — metrics and entries — as one JSON file. That file is the
-        backup; keep it somewhere safe.
+        Downloads everything — metrics, items and entries — as one JSON file. That file is
+        the backup; keep it somewhere safe.
       </p>
       <button type="button" class="action" @click="downloadExport">Download export</button>
     </section>
@@ -132,9 +132,9 @@ async function confirmImport() {
 
       <div v-if="pendingFile" class="confirm" data-testid="import-confirm">
         <p>
-          <strong>{{ pendingName }}</strong> contains {{ pendingFile.metrics.length }} metrics
-          and {{ pendingFile.entries.length }} entries (formatVersion
-          {{ pendingFile.formatVersion }}).
+          <strong>{{ pendingName }}</strong> contains {{ pendingFile.metrics.length }} metrics,
+          {{ pendingFile.items?.length ?? 0 }} items and {{ pendingFile.entries.length }} entries
+          (formatVersion {{ pendingFile.formatVersion }}).
         </p>
         <p class="warning">This replaces everything currently in the database.</p>
         <div class="confirm-buttons">
