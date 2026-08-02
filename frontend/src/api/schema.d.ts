@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/entry-groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteEntryGroup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/export": {
         parameters: {
             query?: never;
@@ -212,6 +228,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/servings/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createEntryGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -225,12 +257,23 @@ export interface components {
         EntryDto: {
             /** Format: int64 */
             amount?: number;
+            /** Format: uuid */
+            groupId?: string;
             /** Format: int64 */
             id?: number;
+            label?: string;
             /** Format: date-time */
             loggedAt?: string;
             /** Format: int64 */
             metricId?: number;
+        };
+        EntryGroupDto: {
+            entries?: components["schemas"]["EntryDto"][];
+            /** Format: uuid */
+            groupId?: string;
+            label?: string;
+            /** Format: date-time */
+            loggedAt?: string;
         };
         ExportDto: {
             entries: components["schemas"]["ExportEntryDto"][];
@@ -244,6 +287,9 @@ export interface components {
         ExportEntryDto: {
             /** Format: int64 */
             amount: number;
+            /** Format: uuid */
+            group?: string;
+            label?: string;
             /** Format: date-time */
             loggedAt: string;
             metric: string;
@@ -310,6 +356,11 @@ export interface components {
             /** Format: int64 */
             id?: number;
             name?: string;
+        };
+        NewEntryGroupRequest: {
+            /** Format: date-time */
+            loggedAt?: string;
+            multiplier?: number;
         };
         NewEntryRequest: {
             /** Format: int64 */
@@ -447,6 +498,26 @@ export interface operations {
             header?: never;
             path: {
                 id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteEntryGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: string;
             };
             cookie?: never;
         };
@@ -730,6 +801,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    createEntryGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewEntryGroupRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["EntryGroupDto"];
+                };
             };
         };
     };
