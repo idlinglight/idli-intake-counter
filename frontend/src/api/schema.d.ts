@@ -61,7 +61,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create"];
+        post: operations["createEntry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -78,7 +78,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete"];
+        delete: operations["deleteEntry"];
         options?: never;
         head?: never;
         patch?: never;
@@ -132,6 +132,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["items"];
+        put?: never;
+        post: operations["createItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["replaceItem"];
+        post?: never;
+        delete: operations["deleteItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/items/{id}/servings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addServing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/metrics": {
         parameters: {
             query?: never;
@@ -141,8 +189,24 @@ export interface paths {
         };
         get: operations["metrics"];
         put?: never;
-        post?: never;
+        post: operations["createMetric"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/servings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["replaceServing"];
+        post?: never;
+        delete: operations["deleteServing"];
         options?: never;
         head?: never;
         patch?: never;
@@ -174,6 +238,7 @@ export interface components {
             exportedAt?: string;
             /** Format: int32 */
             formatVersion: number;
+            items?: components["schemas"]["ExportItemDto"][];
             metrics: components["schemas"]["ExportMetricDto"][];
         };
         ExportEntryDto: {
@@ -183,9 +248,27 @@ export interface components {
             loggedAt: string;
             metric: string;
         };
+        ExportItemAmountDto: {
+            /** Format: int64 */
+            amount: number;
+            metric: string;
+        };
+        ExportItemDto: {
+            amounts: components["schemas"]["ExportItemAmountDto"][];
+            /** Format: int64 */
+            basisAmount: number;
+            basisUnit: string;
+            name: string;
+            servings: components["schemas"]["ExportServingDto"][];
+        };
         ExportMetricDto: {
             canonicalUnit: string;
             name: string;
+        };
+        ExportServingDto: {
+            name: string;
+            /** Format: int64 */
+            quantity: number;
         };
         HelloResponse: {
             gitSha?: string;
@@ -195,7 +278,32 @@ export interface components {
             /** Format: int32 */
             entries?: number;
             /** Format: int32 */
+            items?: number;
+            /** Format: int32 */
             metrics?: number;
+        };
+        ItemAmountDto: {
+            /** Format: int64 */
+            amount: number;
+            /** Format: int64 */
+            metricId: number;
+        };
+        ItemDto: {
+            amounts?: components["schemas"]["ItemAmountDto"][];
+            /** Format: int64 */
+            basisAmount?: number;
+            basisUnit?: string;
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            servings?: components["schemas"]["ServingDto"][];
+        };
+        ItemRequest: {
+            amounts: components["schemas"]["ItemAmountDto"][];
+            /** Format: int64 */
+            basisAmount: number;
+            basisUnit: string;
+            name: string;
         };
         MetricDto: {
             canonicalUnit?: string;
@@ -210,6 +318,22 @@ export interface components {
             loggedAt?: string;
             /** Format: int64 */
             metricId: number;
+        };
+        NewMetricRequest: {
+            canonicalUnit: string;
+            name: string;
+        };
+        ServingDto: {
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            /** Format: int64 */
+            quantity?: number;
+        };
+        ServingRequest: {
+            name: string;
+            /** Format: int64 */
+            quantity: number;
         };
         SessionDto: {
             authenticated?: boolean;
@@ -293,7 +417,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    createEntry: {
         parameters: {
             query?: never;
             header?: never;
@@ -317,7 +441,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    deleteEntry: {
         parameters: {
             query?: never;
             header?: never;
@@ -403,6 +527,122 @@ export interface operations {
             };
         };
     };
+    items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ItemDto"][];
+                };
+            };
+        };
+    };
+    createItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ItemDto"];
+                };
+            };
+        };
+    };
+    replaceItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ItemDto"];
+                };
+            };
+        };
+    };
+    deleteItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    addServing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServingRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ServingDto"];
+                };
+            };
+        };
+    };
     metrics: {
         parameters: {
             query?: never;
@@ -420,6 +660,76 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["MetricDto"][];
                 };
+            };
+        };
+    };
+    createMetric: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewMetricRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["MetricDto"];
+                };
+            };
+        };
+    };
+    replaceServing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ServingDto"];
+                };
+            };
+        };
+    };
+    deleteServing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

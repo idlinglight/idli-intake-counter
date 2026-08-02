@@ -18,17 +18,25 @@ converted only at input and display ([ADR-0002](adr/0002-canonical-units.md)):
 - volume → **mL**
 - mass → **g**
 
-## Domain model (sketch)
+## Domain model
 
 - **Metric** — name, canonical unit (e.g. energy/kJ). User-defined.
+- **Item** — a loggable thing ("protein bar: PS White Choc") with a **basis**
+  (e.g. per 100 g, per 1 piece) and a **composition**: metric amounts per basis
+  ([ADR-0008](adr/0008-item-composition-per-basis.md)). Nutrition-label data
+  enters verbatim, once — 2281 kJ and 30 g protein *per 100 g*.
+- **Serving** — a named quantity of an item in its basis unit, one number each:
+  "whole bar" = 50 g, "half bar" = 25 g. No metric amounts of its own; 0..n per item.
+- **Entry** — timestamp + metric + amount (canonical unit). Logging a serving
+  *copies* the computed amounts (composition × quantity / basis, rounded) into
+  plain entries — history never re-reads the catalog
+  ([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)), so items
+  and servings stay freely editable and deletable.
 - **Unit** — display unit with factor-to-canonical, per metric (kcal = 4.184 kJ).
-- **Item** — a loggable thing ("1L bottle water", "idli, one piece").
-- **Portion** — a named quantity of an item with its metric amounts
-  ("one piece" → 250 kJ; "one bottle" → 1000 mL water). Items own 1..n portions.
-- **Entry** — timestamp + portion reference (or ad-hoc amounts) + multiplier.
+  Sketched, not yet implemented.
 
-Metric and Entry are implemented (see the Flyway migrations, which are the
-source of truth); Item and Portion arrive with the authoring step.
+Metric, Item, Serving and Entry are implemented (see the Flyway migrations,
+which are the source of truth); serving *logging* arrives with the next slice.
 
 ## Recovery model
 
@@ -38,8 +46,11 @@ database backups ([ADR-0004](adr/0004-storage-posture.md)). Import doubles as se
 
 Implemented as `GET /api/export` (dated attachment) and `POST /api/import?mode=replace`
 (transactional replace-all — a restore, not a merge; the explicit `mode` parameter is
-the destructive-intent acknowledgement). Entries reference metrics by name, since ids
-are not preserved across a re-import.
+the destructive-intent acknowledgement). Entries and item amounts reference metrics by
+name, since ids are not preserved across a re-import. Export emits the current
+`formatVersion`; import also accepts every older version, normalizing on read
+([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)) — an old backup
+never becomes unreadable.
 
 ## UI principle: two flows, two primary surfaces
 
@@ -56,4 +67,5 @@ One responsive app; each screen is designed for its primary surface rather than 
 3. ✓ Auth ([ADR-0005](adr/0005-single-user-scope.md)) — pulled ahead: it gates real data in production
 4. ✓ JSON export/import — pulled ahead of authoring: production held real data
    from day one, and the recovery story shouldn't lag it
-5. Energy + items/portions (authoring surface)
+5. ✓ Items + servings + metric authoring (desktop surface), export formatVersion 2
+6. Serving logging, generalized mobile logging surface

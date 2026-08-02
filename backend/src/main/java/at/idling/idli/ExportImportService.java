@@ -16,25 +16,37 @@ import java.util.stream.Collectors;
 /**
  * Full-database export/import — the recovery story of ADR-0004. Export emits
  * everything; import atomically REPLACES everything with the file's content.
- * It is a restore, not a merge.
+ * It is a restore, not a merge: restoring a formatVersion 1 backup therefore
+ * yields a database without items (the file IS the database, ADR-0007).
  */
 @Service
 public class ExportImportService {
 
-	/** Bump when the file shape changes; import accepts only this version. */
-	static final int FORMAT_VERSION = 1;
+	/**
+	 * Bump when the file shape changes; export always emits this version.
+	 * Import also accepts every older version, normalizing on read (ADR-0007).
+	 */
+	static final int FORMAT_VERSION = 2;
 
 	private final MetricRepository metricRepository;
+	private final ItemRepository itemRepository;
+	private final ItemAmountRepository itemAmountRepository;
+	private final ServingRepository servingRepository;
 	private final EntryRepository entryRepository;
 
-	public ExportImportService(MetricRepository metricRepository, EntryRepository entryRepository) {
+	public ExportImportService(MetricRepository metricRepository, ItemRepository itemRepository,
+			ItemAmountRepository itemAmountRepository, ServingRepository servingRepository,
+			EntryRepository entryRepository) {
 		this.metricRepository = metricRepository;
+		this.itemRepository = itemRepository;
+		this.itemAmountRepository = itemAmountRepository;
+		this.servingRepository = servingRepository;
 		this.entryRepository = entryRepository;
 	}
 
-	// REPEATABLE_READ, deliberately: one snapshot for both reads. Under the
+	// REPEATABLE_READ, deliberately: one snapshot for all reads. Under the
 	// default READ_COMMITTED every statement sees its own snapshot, so an
-	// import committing between the two findAll()s would renumber the metric
+	// import committing between the findAll()s would renumber the metric
 	// ids and this method would emit entries with "metric": null — a backup
 	// that fails exactly when it is needed: at restore time.
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -44,69 +56,146 @@ public class ExportImportService {
 				.toList();
 		Map<Long, String> nameById = metrics.stream()
 				.collect(Collectors.toMap(Metric::getId, Metric::getName));
+		Map<Long, List<ItemAmount>> amountsByItemId = itemAmountRepository.findAll().stream()
+				.collect(Collectors.groupingBy(ItemAmount::getItemId));
+		Map<Long, List<Serving>> servingsByItemId = servingRepository.findAll().stream()
+				.collect(Collectors.groupingBy(Serving::getItemId));
 		// Deterministic order keeps two exports of the same data diffable.
+		// Item amounts sort by metric NAME — the stable key across re-imports —
+		// so export → import → export stays byte-identical.
+		List<ExportItemDto> items = itemRepository.findAll().stream()
+				.sorted(Comparator.comparing(Item::getId))
+				.map(item -> new ExportItemDto(item.getName(), item.getBasisAmount(), item.getBasisUnit(),
+						amountsByItemId.getOrDefault(item.getId(), List.of()).stream()
+								.map(amount -> new ExportItemAmountDto(
+										requireMetricName(nameById, amount.getMetricId(),
+												"item amount " + amount.getId()),
+										amount.getAmount()))
+								.sorted(Comparator.comparing(ExportItemAmountDto::metric))
+								.toList(),
+						servingsByItemId.getOrDefault(item.getId(), List.of()).stream()
+								.sorted(Comparator.comparing(Serving::getId))
+								.map(serving -> new ExportServingDto(serving.getName(), serving.getQuantity()))
+								.toList()))
+				.toList();
 		List<ExportEntryDto> entries = entryRepository.findAll().stream()
 				.sorted(Comparator.comparing(Entry::getLoggedAt).thenComparing(Entry::getId))
-				.map(entry -> new ExportEntryDto(requireMetricName(nameById, entry), entry.getAmount(),
-						entry.getLoggedAt()))
+				.map(entry -> new ExportEntryDto(
+						requireMetricName(nameById, entry.getMetricId(), "entry " + entry.getId()),
+						entry.getAmount(), entry.getLoggedAt()))
 				.toList();
 		return new ExportDto(FORMAT_VERSION, Instant.now(),
 				metrics.stream().map(metric -> new ExportMetricDto(metric.getName(), metric.getCanonicalUnit()))
 						.toList(),
-				entries);
+				items, entries);
 	}
 
 	@Transactional
 	public ImportSummaryDto importReplacing(ExportDto file) {
 		// All validation happens before the first delete; the surrounding
 		// transaction is the backstop, not the plan.
-		if (file.formatVersion() != FORMAT_VERSION) {
-			throw new InvalidImportException("unsupported formatVersion " + file.formatVersion()
-					+ "; this build reads formatVersion " + FORMAT_VERSION);
-		}
+		List<ExportItemDto> items = normalizedItems(file);
 		// Also guarded by @NotEmpty at the controller; kept here so no caller
 		// can apply a file that leaves the database metric-less. There is no
-		// endpoint that creates metrics, so that state would be unrecoverable
-		// from inside the app.
+		// import-free way to log anything then — metric authoring exists, but
+		// an empty file is far more likely a truncated backup than intent.
 		if (file.metrics().isEmpty()) {
 			throw new InvalidImportException(
 					"import would leave the database without any metrics; refusing an empty file");
 		}
-		Set<String> names = new HashSet<>();
+		Set<String> metricNames = new HashSet<>();
 		for (ExportMetricDto metric : file.metrics()) {
-			if (!names.add(metric.name())) {
+			if (!metricNames.add(metric.name())) {
 				throw new InvalidImportException("duplicate metric name: " + metric.name());
 			}
 		}
+		Set<String> itemNames = new HashSet<>();
+		for (ExportItemDto item : items) {
+			if (!itemNames.add(item.name())) {
+				throw new InvalidImportException("duplicate item name: " + item.name());
+			}
+			Set<String> amountMetrics = new HashSet<>();
+			for (ExportItemAmountDto amount : item.amounts()) {
+				if (!amountMetrics.add(amount.metric())) {
+					throw new InvalidImportException(
+							"item '" + item.name() + "' lists metric more than once: " + amount.metric());
+				}
+				if (!metricNames.contains(amount.metric())) {
+					throw new InvalidImportException(
+							"item '" + item.name() + "' references unknown metric: " + amount.metric());
+				}
+			}
+			Set<String> servingNames = new HashSet<>();
+			for (ExportServingDto serving : item.servings()) {
+				if (!servingNames.add(serving.name())) {
+					throw new InvalidImportException(
+							"item '" + item.name() + "' has duplicate serving name: " + serving.name());
+				}
+			}
+		}
 		for (ExportEntryDto entry : file.entries()) {
-			if (!names.contains(entry.metric())) {
+			if (!metricNames.contains(entry.metric())) {
 				throw new InvalidImportException("entry references unknown metric: " + entry.metric());
 			}
 		}
 
-		// Entries first — they hold the foreign key onto metric.
+		// Referencing tables first, then their targets.
+		servingRepository.deleteAllInBulk();
+		itemAmountRepository.deleteAllInBulk();
+		itemRepository.deleteAllInBulk();
 		entryRepository.deleteAllInBulk();
 		metricRepository.deleteAllInBulk();
 
-		Map<String, Long> idByName = new HashMap<>();
+		Map<String, Long> metricIdByName = new HashMap<>();
 		for (ExportMetricDto metric : file.metrics()) {
-			idByName.put(metric.name(),
+			metricIdByName.put(metric.name(),
 					metricRepository.save(new Metric(metric.name(), metric.canonicalUnit())).getId());
 		}
+		for (ExportItemDto item : items) {
+			Long itemId = itemRepository.save(new Item(item.name(), item.basisAmount(), item.basisUnit())).getId();
+			itemAmountRepository.saveAll(item.amounts().stream()
+					.map(amount -> new ItemAmount(itemId, metricIdByName.get(amount.metric()), amount.amount()))
+					.toList());
+			servingRepository.saveAll(item.servings().stream()
+					.map(serving -> new Serving(itemId, serving.name(), serving.quantity()))
+					.toList());
+		}
 		entryRepository.saveAll(file.entries().stream()
-				.map(entry -> new Entry(idByName.get(entry.metric()), entry.amount(), entry.loggedAt()))
+				.map(entry -> new Entry(metricIdByName.get(entry.metric()), entry.amount(), entry.loggedAt()))
 				.toList());
-		return new ImportSummaryDto(file.metrics().size(), file.entries().size());
+		return new ImportSummaryDto(file.metrics().size(), items.size(), file.entries().size());
+	}
+
+	/**
+	 * The one place format history lives (ADR-0007): version 1 files carry no
+	 * items and normalize to an empty list; version 2 files must carry the
+	 * list. Anything else is not ours to read.
+	 */
+	private static List<ExportItemDto> normalizedItems(ExportDto file) {
+		int version = file.formatVersion();
+		if (version == 1) {
+			if (file.items() != null && !file.items().isEmpty()) {
+				throw new InvalidImportException("formatVersion 1 files cannot carry items");
+			}
+			return List.of();
+		}
+		if (version == FORMAT_VERSION) {
+			if (file.items() == null) {
+				throw new InvalidImportException("formatVersion 2 requires an items list");
+			}
+			return file.items();
+		}
+		throw new InvalidImportException("unsupported formatVersion " + file.formatVersion()
+				+ "; this build reads formatVersion 1 and " + FORMAT_VERSION);
 	}
 
 	// Belt to the isolation level's braces: a null name would serialize into
 	// the file and surface only at restore time. Better no export than a
 	// silently corrupt one.
-	private static String requireMetricName(Map<Long, String> nameById, Entry entry) {
-		String name = nameById.get(entry.getMetricId());
+	private static String requireMetricName(Map<Long, String> nameById, Long metricId, String owner) {
+		String name = nameById.get(metricId);
 		if (name == null) {
-			throw new IllegalStateException(
-					"entry " + entry.getId() + " references missing metric id " + entry.getMetricId());
+			throw new IllegalStateException(owner + " references missing metric id " + metricId);
 		}
 		return name;
 	}

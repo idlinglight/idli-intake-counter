@@ -59,6 +59,12 @@
             "format": "int32",
             "type": "integer"
           },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportItemDto"
+            },
+            "type": "array"
+          },
           "metrics": {
             "items": {
               "$ref": "#/components/schemas/ExportMetricDto"
@@ -96,6 +102,60 @@
         ],
         "type": "object"
       },
+      "ExportItemAmountDto": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "metric": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "metric"
+        ],
+        "type": "object"
+      },
+      "ExportItemDto": {
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/ExportItemAmountDto"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "basisAmount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "basisUnit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "servings": {
+            "items": {
+              "$ref": "#/components/schemas/ExportServingDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "amounts",
+          "basisAmount",
+          "basisUnit",
+          "name",
+          "servings"
+        ],
+        "type": "object"
+      },
       "ExportMetricDto": {
         "properties": {
           "canonicalUnit": {
@@ -110,6 +170,23 @@
         "required": [
           "canonicalUnit",
           "name"
+        ],
+        "type": "object"
+      },
+      "ExportServingDto": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "quantity"
         ],
         "type": "object"
       },
@@ -130,11 +207,93 @@
             "format": "int32",
             "type": "integer"
           },
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
           "metrics": {
             "format": "int32",
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "ItemAmountDto": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "metricId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amount",
+          "metricId"
+        ],
+        "type": "object"
+      },
+      "ItemDto": {
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/ItemAmountDto"
+            },
+            "type": "array"
+          },
+          "basisAmount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "basisUnit": {
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "servings": {
+            "items": {
+              "$ref": "#/components/schemas/ServingDto"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ItemRequest": {
+        "properties": {
+          "amounts": {
+            "items": {
+              "$ref": "#/components/schemas/ItemAmountDto"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "basisAmount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "basisUnit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "amounts",
+          "basisAmount",
+          "basisUnit",
+          "name"
+        ],
         "type": "object"
       },
       "MetricDto": {
@@ -170,6 +329,56 @@
         "required": [
           "amount",
           "metricId"
+        ],
+        "type": "object"
+      },
+      "NewMetricRequest": {
+        "properties": {
+          "canonicalUnit": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "canonicalUnit",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ServingDto": {
+        "properties": {
+          "id": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServingRequest": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "quantity"
         ],
         "type": "object"
       },
@@ -277,7 +486,7 @@
     },
     "/api/entries": {
       "post": {
-        "operationId": "create",
+        "operationId": "createEntry",
         "requestBody": {
           "content": {
             "application/json": {
@@ -307,7 +516,7 @@
     },
     "/api/entries/{id}": {
       "delete": {
-        "operationId": "delete",
+        "operationId": "deleteEntry",
         "parameters": [
           {
             "in": "path",
@@ -412,6 +621,161 @@
         ]
       }
     },
+    "/api/items": {
+      "get": {
+        "operationId": "items",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createItem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      }
+    },
+    "/api/items/{id}": {
+      "delete": {
+        "operationId": "deleteItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      },
+      "put": {
+        "operationId": "replaceItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      }
+    },
+    "/api/items/{id}/servings": {
+      "post": {
+        "operationId": "addServing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServingDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      }
+    },
     "/api/metrics": {
       "get": {
         "operationId": "metrics",
@@ -432,6 +796,97 @@
         },
         "tags": [
           "metric-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createMetric",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewMetricRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "metric-controller"
+        ]
+      }
+    },
+    "/api/servings/{id}": {
+      "delete": {
+        "operationId": "deleteServing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "item-controller"
+        ]
+      },
+      "put": {
+        "operationId": "replaceServing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServingDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "item-controller"
         ]
       }
     }
