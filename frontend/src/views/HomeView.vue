@@ -270,6 +270,10 @@ onMounted(load)
       </button>
     </div>
 
+    <!-- Above the fold, next to the water number it complements — at the
+         bottom of the day list it was a scroll away and easily missed. -->
+    <p v-if="totalsText" class="day-totals" data-testid="day-totals">{{ totalsText }}</p>
+
     <section v-if="loggableItems.length > 0" class="log-item" data-testid="log-item-section">
       <h2 class="subtitle">Log item</h2>
       <select v-model.number="selectedItemId" class="item-select" data-testid="item-select">
@@ -341,7 +345,6 @@ onMounted(load)
         </li>
       </ul>
       <p v-else-if="!error" class="empty">Nothing logged today.</p>
-      <p v-if="totalsText" class="day-totals" data-testid="day-totals">{{ totalsText }}</p>
     </section>
   </main>
 </template>
