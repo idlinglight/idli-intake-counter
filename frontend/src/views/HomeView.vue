@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 import { formatAmount } from '@/utils/format'
+import { failureText } from '@/utils/failureText'
 import { useRefreshOnReactivate } from '@/composables/useRefreshOnReactivate'
 import RefreshIndicator from '@/components/RefreshIndicator.vue'
 
@@ -185,7 +186,7 @@ async function logServing(servingId: number | undefined) {
   if (servingId === undefined) return
   // A cleared input leaves '' behind (v-model.number keeps unparseable raw
   // values) — sending it would silently log at ×1. Refuse loudly instead.
-  if (typeof multiplier.value !== 'number' || !Number.isFinite(multiplier.value)) {
+  if (asAmount(multiplier.value) === null) {
     error.value = 'enter a multiplier before logging'
     return
   }
@@ -198,14 +199,12 @@ async function logServing(servingId: number | undefined) {
     })
     if (postError) {
       // The backend's reason is user-meaningful here (e.g. an amount that
-      // would round to zero) — show it when present, mirroring
-      // AuthoringView's failureText fallback otherwise.
-      const message = (postError as { message?: string }).message
-      // The contract declares only the 201 response, so TS narrows the error
-      // branch's `response` to never — widen it back to the real Response.
-      error.value = message
-        ? `logging failed: ${message}`
-        : `logging failed (HTTP ${(response as Response | undefined)?.status})`
+      // would round to zero). The contract declares only the 201 response, so
+      // TS narrows the error branch's `response` to never — widen it back.
+      error.value = failureText('logging', {
+        error: postError,
+        response: response as Response | undefined,
+      })
       return
     }
   } catch {
@@ -222,6 +221,16 @@ const adhocQuantity = ref<number | null>(null)
 const weighMode = ref(false)
 const weighBefore = ref<number | null>(null)
 const weighAfter = ref<number | null>(null)
+const adhocPosting = ref(false)
+
+// A quantity measured for one item must not survive into another: switching
+// the picker clears the ad-hoc inputs (weigh mode itself may stay on — it is
+// a preference, not a measurement).
+watch(selectedItemId, () => {
+  adhocQuantity.value = null
+  weighBefore.value = null
+  weighAfter.value = null
+})
 
 /** v-model.number keeps unparseable raw values ('' stays a string) — treat anything non-finite as absent. */
 function asAmount(value: number | null): number | null {
@@ -231,7 +240,10 @@ function asAmount(value: number | null): number | null {
 const weighDelta = computed(() => {
   const before = asAmount(weighBefore.value)
   const after = asAmount(weighAfter.value)
-  return before === null || after === null ? null : before - after
+  if (before === null || after === null) return null
+  // Kill IEEE-754 noise (2.2 - 1.2 → 1.0000000000000002) so a whole-number
+  // delta from decimal scale readings stays an integer — and loggable.
+  return Math.round((before - after) * 1e6) / 1e6
 })
 
 // What a Log tap would send; null disables the button (fractions, empty
@@ -247,7 +259,10 @@ const adhocLogQuantity = computed(() => {
 async function logAdhoc() {
   const itemId = selectedItem.value?.id
   const quantity = adhocLogQuantity.value
-  if (itemId === undefined || quantity === null) return
+  // The in-flight guard keeps a double-tap from logging the quantity twice —
+  // the inputs only clear after the POST resolves.
+  if (adhocPosting.value || itemId === undefined || quantity === null) return
+  adhocPosting.value = true
   error.value = ''
   try {
     const { error: postError, response } = await api.POST('/api/items/{id}/entries', {
@@ -255,15 +270,17 @@ async function logAdhoc() {
       body: { quantity },
     })
     if (postError) {
-      const message = (postError as { message?: string }).message
-      error.value = message
-        ? `logging failed: ${message}`
-        : `logging failed (HTTP ${(response as Response | undefined)?.status})`
+      error.value = failureText('logging', {
+        error: postError,
+        response: response as Response | undefined,
+      })
       return
     }
   } catch {
     error.value = 'backend unreachable'
     return
+  } finally {
+    adhocPosting.value = false
   }
   // Spent inputs snap back empty — a second tap must be a deliberate re-entry.
   adhocQuantity.value = null
@@ -434,7 +451,7 @@ const { refreshing } = useRefreshOnReactivate(load)
             type="button"
             class="quick-log-button adhoc-log"
             data-testid="adhoc-log"
-            :disabled="adhocLogQuantity === null"
+            :disabled="adhocLogQuantity === null || adhocPosting"
             @click="logAdhoc"
           >
             Log

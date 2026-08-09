@@ -47,3 +47,11 @@ optional fields under the same accept-every-older-version policy. Group
 members remain plain rows: the UI deletes a group atomically, but an
 individual member stays deletable through the raw entry API — the group is a
 tag, not an aggregate.
+
+## Amendment (2026-08-09)
+
+A second producer of grouped snapshots: ad-hoc item logging takes a log-time
+quantity in the item's basis unit — no serving, no multiplier — and snapshots
+it with the same group-id/label semantics. Its label composes from the item
+name and the quantity itself ("pasta – 137 g") instead of a serving name.
+Everything else above applies unchanged.

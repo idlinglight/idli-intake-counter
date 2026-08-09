@@ -68,11 +68,9 @@ public class IntakeService {
 		Item item = itemRepository.findById(serving.getItemId())
 				.orElseThrow(() -> new IllegalStateException(
 						"serving " + servingId + " references missing item id " + serving.getItemId()));
-		List<ItemAmount> amounts = composition(item);
 		BigDecimal multiplier = request.multiplier() != null ? request.multiplier() : BigDecimal.ONE;
 		Instant loggedAt = request.loggedAt() != null ? request.loggedAt() : Instant.now();
-		return snapshotGroup(item, amounts, serving.getQuantity(), multiplier, label(item, serving, multiplier),
-				loggedAt);
+		return snapshotGroup(item, serving.getQuantity(), multiplier, label(item, serving, multiplier), loggedAt);
 	}
 
 	/**
@@ -86,10 +84,9 @@ public class IntakeService {
 	public EntryGroupDto logItem(long itemId, NewItemEntryRequest request) {
 		Item item = itemRepository.findById(itemId)
 				.orElseThrow(() -> new ItemNotFoundException(itemId));
-		List<ItemAmount> amounts = composition(item);
 		Instant loggedAt = request.loggedAt() != null ? request.loggedAt() : Instant.now();
-		String label = item.getName() + " – " + request.quantity() + " " + item.getBasisUnit();
-		return snapshotGroup(item, amounts, request.quantity(), BigDecimal.ONE, label, loggedAt);
+		String label = label(item, request.quantity() + " " + item.getBasisUnit());
+		return snapshotGroup(item, request.quantity(), BigDecimal.ONE, label, loggedAt);
 	}
 
 	private List<ItemAmount> composition(Item item) {
@@ -103,8 +100,11 @@ public class IntakeService {
 		return amounts;
 	}
 
-	private EntryGroupDto snapshotGroup(Item item, List<ItemAmount> amounts, long quantity, BigDecimal multiplier,
-			String label, Instant loggedAt) {
+	private EntryGroupDto snapshotGroup(Item item, long quantity, BigDecimal multiplier, String label,
+			Instant loggedAt) {
+		// Fetched here, not passed in: every group producer goes through the
+		// composition() belt — an empty composition cannot be skipped.
+		List<ItemAmount> amounts = composition(item);
 		UUID groupId = UUID.randomUUID();
 		// Compute everything before writing anything: a rejection must be a
 		// no-op, never a partial group.
@@ -177,8 +177,13 @@ public class IntakeService {
 		return computed;
 	}
 
+	/** "name – suffix": the one place the group-label convention lives. */
+	private static String label(Item item, String suffix) {
+		return item.getName() + " – " + suffix;
+	}
+
 	private static String label(Item item, Serving serving, BigDecimal multiplier) {
-		String base = item.getName() + " – " + serving.getName();
+		String base = label(item, serving.getName());
 		if (multiplier.compareTo(BigDecimal.ONE) == 0) {
 			return base;
 		}

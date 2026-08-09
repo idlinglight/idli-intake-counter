@@ -27,14 +27,16 @@ converted only at input and display ([ADR-0002](adr/0002-canonical-units.md)):
   enters verbatim, once — 2281 kJ and 30 g protein *per 100 g*.
 - **Serving** — a named quantity of an item in its basis unit, one number each:
   "whole bar" = 50 g, "half bar" = 25 g. No metric amounts of its own; 0..n per item.
-- **Entry** — timestamp + metric + amount (canonical unit). Logging a serving
+- **Entry** — timestamp + metric + amount (canonical unit). Logging a serving,
+  or an ad-hoc item quantity weighed at log time (no serving, no multiplier),
   *copies* the computed amounts (composition × quantity × multiplier / basis,
   rounded) into plain entries — history never re-reads the catalog
   ([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)), so items
   and servings stay freely editable and deletable. The entries of one log
   action share a group id and a label snapshotted at log time
-  ("protein bar – half bar ×2"): one action, N entries, one row and one
-  atomic delete in the UI. Ad-hoc entries carry neither.
+  ("protein bar – half bar ×2", "pasta – 137 g"): one action, N entries, one
+  row and one atomic delete in the UI. Plain metric entries (the water
+  quick-log) carry neither.
 - **Unit** — display unit with factor-to-canonical, per metric (kcal = 4.184 kJ).
   Sketched, not yet implemented.
 
