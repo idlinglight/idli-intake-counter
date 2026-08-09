@@ -42,7 +42,10 @@ async function refresh() {
       return
     }
     metrics.value = metricsResult.data
-    items.value = itemsResult.data
+    // Newest first: a just-created item lands next to the form that made it,
+    // where adding servings continues. Sorted here, not in the backend — this
+    // is a view choice of this surface, and Home's picker keeps its own order.
+    items.value = [...itemsResult.data].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
     // A refresh that succeeded is the freshest truth — clear stale banners
     // (e.g. a 404 from a delete that raced: the row is gone, all is well).
     error.value = ''
