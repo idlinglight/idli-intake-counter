@@ -1,6 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import AuthoringView from '../AuthoringView.vue'
+import { STALE_AFTER_MS } from '@/composables/useRefreshOnReactivate'
+
+// Views now register window/document listeners (reactivation refresh) —
+// leaked mounts would make later tests' dispatched events fan out to every
+// previously mounted instance.
+enableAutoUnmount(afterEach)
 
 type ApiResult = { data?: unknown; error?: unknown; response: Response }
 type ApiCall = (path: string, init?: unknown) => Promise<ApiResult>
@@ -228,5 +234,24 @@ describe('AuthoringView', () => {
     const names = wrapper.findAll('[data-testid="item"]').map((node) => node.text())
     expect(names[0]).toContain('newer item')
     expect(names[1]).toContain('older item')
+  })
+
+  it('refetches and shows the indicator when re-activated after going stale', async () => {
+    const wrapper = await mountView()
+    const itemCalls = () => getMock.mock.calls.filter(([path]) => path === '/api/items').length
+    expect(itemCalls()).toBe(1)
+
+    // Fake only Date so flushPromises (setTimeout-based) keeps working.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + STALE_AFTER_MS + 1000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+
+      expect(itemCalls()).toBe(2)
+      expect(wrapper.find('[data-testid="refresh-indicator"]').exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
