@@ -104,29 +104,39 @@ const totalsText = computed(() =>
 // The backend is the single clock: "today" is resolved server-side in the
 // configured zone, so browser and server can never disagree on the day.
 // On failure the previous day view is kept — stale data beats fake-empty data.
-async function refreshDay() {
+// The generation token drops responses overtaken by a newer refresh: a slow
+// reactivation reload must not land after a quick-log's refresh and revert
+// the just-logged entry (last writer would otherwise win).
+let dayGen = 0
+async function refreshDay(): Promise<boolean> {
+  const gen = ++dayGen
   try {
     const { data } = await api.GET('/api/days/today')
+    if (gen !== dayGen) return true // superseded — a newer refresh owns the state
     if (!data) {
       error.value = 'could not load today'
-      return
+      return false
     }
     day.value = data
+    return true
   } catch {
-    error.value = 'backend unreachable'
+    if (gen === dayGen) error.value = 'backend unreachable'
+    return false
   }
 }
 
-async function load() {
-  error.value = ''
+async function load(): Promise<boolean> {
   try {
-    const [metricsResult, itemsResult] = await Promise.all([
+    // The day fetch needs nothing from metrics/items — run all three in
+    // parallel; the guards below only gate how the results are applied.
+    const [metricsResult, itemsResult, dayOk] = await Promise.all([
       api.GET('/api/metrics'),
       api.GET('/api/items'),
+      refreshDay(),
     ])
     if (!metricsResult.data) {
       error.value = 'backend unreachable'
-      return
+      return false
     }
     metrics.value = metricsResult.data
     // Items only power the serving surface — a failed items fetch must not
@@ -134,14 +144,20 @@ async function load() {
     items.value = itemsResult.data ?? []
     if (waterMetric.value?.id === undefined) {
       error.value = 'no "water" metric configured'
-      return
+      return false
     }
-    await refreshDay()
     if (!itemsResult.data) {
       error.value = 'could not load items'
+      return false
     }
+    if (!dayOk) return false // refreshDay already reported its own error
+    // Only a full success clears stale banners — a failed (background)
+    // reload must not wipe a message it didn't resolve.
+    error.value = ''
+    return true
   } catch {
     error.value = 'backend unreachable'
+    return false
   }
 }
 

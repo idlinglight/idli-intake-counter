@@ -14,6 +14,11 @@ export const MIN_VISIBLE_MS = 600
  * the view's data may have gone stale — the answer to logging on one device
  * and later looking at another device's long-open window.
  *
+ * `refresh` reports failure by resolving to `false` (or by rejecting); a
+ * failed attempt leaves the staleness clock untouched, so the next
+ * reactivation retries instead of sitting out STALE_AFTER_MS on stale data
+ * (the classic case: focus fires on laptop wake before Wi-Fi is back).
+ *
  * Staleness is measured from mount / the last reactivation refresh, not from
  * the view's own mutation refreshes; the worst case of that simplification is
  * one redundant refetch, since mutations only happen while the tab is active.
@@ -24,6 +29,7 @@ export function useRefreshOnReactivate(refresh: () => Promise<unknown>) {
   const refreshing = ref(false)
   let lastFresh = 0
   let inFlight = false
+  let unmounted = false
   let hideTimer: ReturnType<typeof setTimeout> | undefined
 
   async function reactivated() {
@@ -34,13 +40,20 @@ export function useRefreshOnReactivate(refresh: () => Promise<unknown>) {
     inFlight = true
     refreshing.value = true
     const shownAt = Date.now()
+    let ok = false
     try {
-      await refresh()
+      ok = (await refresh()) !== false
+    } catch {
+      // A rejecting refresh is a failed refresh — swallow it here (nothing
+      // upstream of a DOM event listener could handle it anyway) and leave
+      // the staleness clock untouched so the next reactivation retries.
     } finally {
-      lastFresh = Date.now()
+      if (ok) lastFresh = Date.now()
       inFlight = false
       const remaining = MIN_VISIBLE_MS - (Date.now() - shownAt)
-      if (remaining > 0) {
+      // After unmount there is no indicator to hold — and a timer scheduled
+      // here would outlive the clearTimeout that already ran in onUnmounted.
+      if (remaining > 0 && !unmounted) {
         hideTimer = setTimeout(() => {
           refreshing.value = false
         }, remaining)
@@ -57,6 +70,7 @@ export function useRefreshOnReactivate(refresh: () => Promise<unknown>) {
   })
 
   onUnmounted(() => {
+    unmounted = true
     document.removeEventListener('visibilitychange', reactivated)
     window.removeEventListener('focus', reactivated)
     clearTimeout(hideTimer)

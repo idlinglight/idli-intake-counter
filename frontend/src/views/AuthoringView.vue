@@ -33,26 +33,44 @@ const servingQuantity = ref<number | null>(null)
 
 const metricById = computed(() => new Map(metrics.value.map((metric) => [metric.id, metric])))
 
-async function refresh() {
+// The generation token drops responses overtaken by a newer refresh: a slow
+// reactivation reload must not land after a mutation's own refresh and revert
+// the list (or wipe the failure banner the mutation just posted).
+let refreshGen = 0
+async function refresh(): Promise<boolean> {
+  const gen = ++refreshGen
   try {
     const [metricsResult, itemsResult] = await Promise.all([
       api.GET('/api/metrics'),
       api.GET('/api/items'),
     ])
+    if (gen !== refreshGen) return true // superseded — a newer refresh owns the state
     if (!metricsResult.data || !itemsResult.data) {
       error.value = 'backend unreachable'
-      return
+      return false
     }
     metrics.value = metricsResult.data
     // Newest first: a just-created item lands next to the form that made it,
     // where adding servings continues. Sorted here, not in the backend — this
     // is a view choice of this surface, and Home's picker keeps its own order.
     items.value = [...itemsResult.data].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
+    // Forms are anchored to rows via v-if inside the items v-for. A form whose
+    // row vanished (item deleted here or on another device) would unmount
+    // silently and strand its open-state — with itemFormOpen stuck true, even
+    // "New item…" disappears. Close such forms explicitly.
+    if (editingItem.value !== null && !items.value.some((item) => item.id === editingItem.value?.id)) {
+      closeItemForm()
+    }
+    if (servingFormItemId.value !== null && !items.value.some((item) => item.id === servingFormItemId.value)) {
+      closeServingForm()
+    }
     // A refresh that succeeded is the freshest truth — clear stale banners
     // (e.g. a 404 from a delete that raced: the row is gone, all is well).
     error.value = ''
+    return true
   } catch {
-    error.value = 'backend unreachable'
+    if (gen === refreshGen) error.value = 'backend unreachable'
+    return false
   }
 }
 

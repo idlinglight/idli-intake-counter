@@ -115,6 +115,39 @@ describe('useRefreshOnReactivate', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('retries on the next reactivation when refresh reports failure', async () => {
+    const refresh = vi.fn<() => Promise<unknown>>(async () => false)
+    mountHost(refresh)
+
+    vi.advanceTimersByTime(STALE_AFTER_MS + 1000)
+    await reactivate()
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    // A failed attempt must not stamp freshness — retrying is the point.
+    await vi.advanceTimersByTimeAsync(MIN_VISIBLE_MS)
+    await reactivate()
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it('treats a rejecting refresh as a failed attempt, not an unhandled rejection', async () => {
+    const refresh = vi.fn<() => Promise<void>>(async () => {
+      throw new Error('boom')
+    })
+    const { refreshing } = mountHost(refresh)
+
+    vi.advanceTimersByTime(STALE_AFTER_MS + 1000)
+    await reactivate()
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    // The indicator still winds down normally…
+    await vi.advanceTimersByTimeAsync(MIN_VISIBLE_MS)
+    expect(refreshing()).toBe(false)
+
+    // …and the failure keeps the staleness clock, so the next wake retries.
+    await reactivate()
+    expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
   it('stops listening after unmount', async () => {
     const refresh = vi.fn<() => Promise<void>>(async () => {})
     const { wrapper } = mountHost(refresh)
