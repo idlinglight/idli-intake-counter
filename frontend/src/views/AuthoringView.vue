@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 import { formatAmount } from '@/utils/format'
+import { failureText } from '@/utils/failureText'
 import ItemForm from '@/components/ItemForm.vue'
 import { useRefreshOnReactivate } from '@/composables/useRefreshOnReactivate'
 import RefreshIndicator from '@/components/RefreshIndicator.vue'
@@ -72,12 +73,6 @@ async function refresh(): Promise<boolean> {
     if (gen === refreshGen) error.value = 'backend unreachable'
     return false
   }
-}
-
-/** The backend's rejection reason (include-message) beats a bare status code. */
-function failureText(action: string, result: { error?: unknown; response: Response }): string {
-  const body = result.error as { message?: string } | undefined
-  return body?.message ? `${action} failed: ${body.message}` : `${action} failed (HTTP ${result.response.status})`
 }
 
 type MutationResult = { data?: unknown; error?: unknown; response: Response }
