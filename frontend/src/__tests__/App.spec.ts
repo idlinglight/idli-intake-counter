@@ -15,7 +15,7 @@ vi.mock('@/stores/auth', () => ({ useAuthStore: () => authMock }))
 
 function mountApp() {
   return mount(App, {
-    global: { stubs: { RouterLink: true, RouterView: true, BackendStatus: true } },
+    global: { stubs: { RouterLink: true, RouterView: true, BuildInfo: true } },
   })
 }
 
