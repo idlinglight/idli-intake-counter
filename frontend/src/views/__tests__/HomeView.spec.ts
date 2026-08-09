@@ -195,8 +195,10 @@ describe('HomeView', () => {
     expect(getMock).toHaveBeenCalledTimes(4) // resync still happens
   })
 
-  it('hides the item picker when no item has servings', async () => {
-    itemsData = [{ ...proteinBar, servings: [] }]
+  it('hides the item picker only when there are no items at all', async () => {
+    // Serving-less items stay loggable via the ad-hoc input, so they no
+    // longer hide the section — an empty catalog still does.
+    itemsData = []
 
     const wrapper = mount(HomeView)
     await flushPromises()
@@ -303,6 +305,74 @@ describe('HomeView', () => {
     expect(deleteMock).toHaveBeenCalledWith('/api/entry-groups/{groupId}', {
       params: { path: { groupId: 'abc-123' } },
     })
+  })
+
+  it('logs an ad-hoc quantity with the exact body and refreshes the day', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+
+    await wrapper.get('[data-testid="adhoc-quantity"]').setValue(137)
+    await wrapper.get('[data-testid="adhoc-log"]').trigger('click')
+    await flushPromises()
+
+    expect(postMock).toHaveBeenCalledWith('/api/items/{id}/entries', {
+      params: { path: { id: 4 } },
+      body: { quantity: 137 },
+    })
+    // Day refreshed, input snapped back empty for a deliberate re-entry.
+    expect(getMock.mock.calls.filter(([path]) => path === '/api/days/today').length).toBe(2)
+    expect((wrapper.get('[data-testid="adhoc-quantity"]').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('computes the container delta in weigh mode and logs it', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+
+    await wrapper.get('[data-testid="weigh-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="weigh-before"]').setValue(412)
+    await wrapper.get('[data-testid="weigh-after"]').setValue(275)
+
+    expect(wrapper.get('[data-testid="weigh-delta"]').text()).toBe('= 137 g')
+    await wrapper.get('[data-testid="adhoc-log"]').trigger('click')
+    await flushPromises()
+
+    expect(postMock).toHaveBeenCalledWith('/api/items/{id}/entries', {
+      params: { path: { id: 4 } },
+      body: { quantity: 137 },
+    })
+  })
+
+  it('refuses non-positive deltas and fractional quantities via the disabled button', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+
+    // Fraction: the backend wants whole basis units.
+    await wrapper.get('[data-testid="adhoc-quantity"]').setValue(136.5)
+    expect(wrapper.get('[data-testid="adhoc-log"]').attributes('disabled')).toBeDefined()
+
+    // after > before — an "ate negative pasta" delta stays unloggable.
+    await wrapper.get('[data-testid="weigh-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="weigh-before"]').setValue(275)
+    await wrapper.get('[data-testid="weigh-after"]').setValue(412)
+    expect(wrapper.get('[data-testid="weigh-delta"]').text()).toBe('= -137 g')
+    expect(wrapper.get('[data-testid="adhoc-log"]').attributes('disabled')).toBeDefined()
+    expect(postMock).not.toHaveBeenCalled()
+  })
+
+  it('offers serving-less items in the picker with the ad-hoc input only', async () => {
+    itemsData = [
+      { ...proteinBar, id: 8, name: 'bare pasta', servings: [] },
+    ]
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="item-select"]').setValue(8)
+    expect(wrapper.findAll('[data-testid="serving-button"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="multiplier-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="adhoc-quantity"]').exists()).toBe(true)
   })
 
   it('reloads and shows the indicator when re-activated after going stale', async () => {

@@ -68,6 +68,31 @@ public class IntakeService {
 		Item item = itemRepository.findById(serving.getItemId())
 				.orElseThrow(() -> new IllegalStateException(
 						"serving " + servingId + " references missing item id " + serving.getItemId()));
+		List<ItemAmount> amounts = composition(item);
+		BigDecimal multiplier = request.multiplier() != null ? request.multiplier() : BigDecimal.ONE;
+		Instant loggedAt = request.loggedAt() != null ? request.loggedAt() : Instant.now();
+		return snapshotGroup(item, amounts, serving.getQuantity(), multiplier, label(item, serving, multiplier),
+				loggedAt);
+	}
+
+	/**
+	 * The ad-hoc sibling of {@link #logServing} (issue #15): the quantity is a
+	 * log-time measurement in the item's basis unit (a weighed portion), not an
+	 * authored serving — the label snapshots the quantity itself
+	 * ("pasta – 137 g"). No multiplier: the free-form quantity is already the
+	 * precise knob, and a second multiplicative input invites silent mistakes.
+	 */
+	@Transactional(isolation = Isolation.REPEATABLE_READ)
+	public EntryGroupDto logItem(long itemId, NewItemEntryRequest request) {
+		Item item = itemRepository.findById(itemId)
+				.orElseThrow(() -> new ItemNotFoundException(itemId));
+		List<ItemAmount> amounts = composition(item);
+		Instant loggedAt = request.loggedAt() != null ? request.loggedAt() : Instant.now();
+		String label = item.getName() + " – " + request.quantity() + " " + item.getBasisUnit();
+		return snapshotGroup(item, amounts, request.quantity(), BigDecimal.ONE, label, loggedAt);
+	}
+
+	private List<ItemAmount> composition(Item item) {
 		List<ItemAmount> amounts = itemAmountRepository.findByItemId(item.getId()).stream()
 				.sorted(Comparator.comparing(ItemAmount::getMetricId))
 				.toList();
@@ -75,17 +100,17 @@ public class IntakeService {
 		if (amounts.isEmpty()) {
 			throw new InvalidEntryGroupException("item '" + item.getName() + "' has no composition; nothing to log");
 		}
+		return amounts;
+	}
 
-		BigDecimal multiplier = request.multiplier() != null ? request.multiplier() : BigDecimal.ONE;
-		Instant loggedAt = request.loggedAt() != null ? request.loggedAt() : Instant.now();
+	private EntryGroupDto snapshotGroup(Item item, List<ItemAmount> amounts, long quantity, BigDecimal multiplier,
+			String label, Instant loggedAt) {
 		UUID groupId = UUID.randomUUID();
-		String label = label(item, serving, multiplier);
-
 		// Compute everything before writing anything: a rejection must be a
 		// no-op, never a partial group.
 		List<Entry> entries = amounts.stream()
 				.map(amount -> new Entry(amount.getMetricId(),
-						computedAmount(amount, serving, multiplier, item, label), loggedAt, groupId, label))
+						computedAmount(amount, quantity, multiplier, item, label), loggedAt, groupId, label))
 				.toList();
 		return new EntryGroupDto(groupId, label, loggedAt,
 				entryRepository.saveAll(entries).stream().map(this::toDto).toList());
@@ -125,11 +150,11 @@ public class IntakeService {
 	}
 
 	/** composition × quantity × multiplier ÷ basis, rounded half-up to the canonical integer. */
-	private long computedAmount(ItemAmount amount, Serving serving, BigDecimal multiplier, Item item, String label) {
+	private long computedAmount(ItemAmount amount, long quantity, BigDecimal multiplier, Item item, String label) {
 		long computed;
 		try {
 			computed = BigDecimal.valueOf(amount.getAmount())
-					.multiply(BigDecimal.valueOf(serving.getQuantity()))
+					.multiply(BigDecimal.valueOf(quantity))
 					.multiply(multiplier)
 					.divide(BigDecimal.valueOf(item.getBasisAmount()), 0, RoundingMode.HALF_UP)
 					.longValueExact();

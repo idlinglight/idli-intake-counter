@@ -380,6 +380,22 @@
         ],
         "type": "object"
       },
+      "NewItemEntryRequest": {
+        "properties": {
+          "loggedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "type": "object"
+      },
       "NewMetricRequest": {
         "properties": {
           "canonicalUnit": {
@@ -804,6 +820,47 @@
         },
         "tags": [
           "item-controller"
+        ]
+      }
+    },
+    "/api/items/{id}/entries": {
+      "post": {
+        "operationId": "createItemEntryGroup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewItemEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryGroupDto"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "entry-controller"
         ]
       }
     },

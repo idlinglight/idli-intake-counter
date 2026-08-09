@@ -33,10 +33,11 @@ const waterTotal = computed(
     0,
 )
 
-// Items without servings have nothing tappable — they never appear here.
-const loggableItems = computed(() => items.value.filter((item) => (item.servings ?? []).length > 0))
+// Every item is loggable: composition alone is enough for the ad-hoc
+// quantity path (authoring refuses composition-less items); servings just
+// add one-tap shortcuts on top.
 const selectedItem = computed(
-  () => loggableItems.value.find((item) => item.id === selectedItemId.value) ?? null,
+  () => items.value.find((item) => item.id === selectedItemId.value) ?? null,
 )
 
 /**
@@ -215,6 +216,62 @@ async function logServing(servingId: number | undefined) {
   await refreshDay()
 }
 
+// ── Ad-hoc quantities: weighed portions in the item's basis unit ──
+
+const adhocQuantity = ref<number | null>(null)
+const weighMode = ref(false)
+const weighBefore = ref<number | null>(null)
+const weighAfter = ref<number | null>(null)
+
+/** v-model.number keeps unparseable raw values ('' stays a string) — treat anything non-finite as absent. */
+function asAmount(value: number | null): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+const weighDelta = computed(() => {
+  const before = asAmount(weighBefore.value)
+  const after = asAmount(weighAfter.value)
+  return before === null || after === null ? null : before - after
+})
+
+// What a Log tap would send; null disables the button (fractions, empty
+// inputs, and non-positive deltas included — the backend wants whole > 0).
+const adhocLogQuantity = computed(() => {
+  const quantity = weighMode.value ? weighDelta.value : asAmount(adhocQuantity.value)
+  return quantity !== null && Number.isInteger(quantity) && quantity > 0 ? quantity : null
+})
+
+// Deliberately multiplier-free: the typed quantity is already the precise
+// knob (a leftover ×2 silently doubling a weighed 137 g is the mistake this
+// avoids), and the API contract carries no multiplier either.
+async function logAdhoc() {
+  const itemId = selectedItem.value?.id
+  const quantity = adhocLogQuantity.value
+  if (itemId === undefined || quantity === null) return
+  error.value = ''
+  try {
+    const { error: postError, response } = await api.POST('/api/items/{id}/entries', {
+      params: { path: { id: itemId } },
+      body: { quantity },
+    })
+    if (postError) {
+      const message = (postError as { message?: string }).message
+      error.value = message
+        ? `logging failed: ${message}`
+        : `logging failed (HTTP ${(response as Response | undefined)?.status})`
+      return
+    }
+  } catch {
+    error.value = 'backend unreachable'
+    return
+  }
+  // Spent inputs snap back empty — a second tap must be a deliberate re-entry.
+  adhocQuantity.value = null
+  weighBefore.value = null
+  weighAfter.value = null
+  await refreshDay()
+}
+
 async function removeEntry(id: number | undefined) {
   if (id === undefined) return
   error.value = ''
@@ -296,39 +353,101 @@ const { refreshing } = useRefreshOnReactivate(load)
          bottom of the day list it was a scroll away and easily missed. -->
     <p v-if="totalsText" class="day-totals" data-testid="day-totals">{{ totalsText }}</p>
 
-    <section v-if="loggableItems.length > 0" class="log-item" data-testid="log-item-section">
+    <section v-if="items.length > 0" class="log-item" data-testid="log-item-section">
       <h2 class="subtitle">Log item</h2>
       <select v-model.number="selectedItemId" class="item-select" data-testid="item-select">
         <option :value="null">log an item…</option>
-        <option v-for="item in loggableItems" :key="item.id" :value="item.id">
+        <option v-for="item in items" :key="item.id" :value="item.id">
           {{ item.name }}
         </option>
       </select>
       <template v-if="selectedItem">
-        <div class="serving-buttons">
+        <template v-if="(selectedItem.servings ?? []).length > 0">
+          <div class="serving-buttons">
+            <button
+              v-for="serving in selectedItem.servings"
+              :key="serving.id"
+              type="button"
+              class="quick-log-button serving-button"
+              data-testid="serving-button"
+              @click="logServing(serving.id)"
+            >
+              {{ serving.name }} ({{ serving.quantity }} {{ selectedItem.basisUnit }})
+            </button>
+          </div>
+          <label class="multiplier">
+            ×
+            <input
+              v-model.number="multiplier"
+              data-testid="multiplier-input"
+              class="multiplier-input"
+              type="number"
+              min="0.01"
+              step="0.25"
+            />
+            <span class="multiplier-hint">applies to the next serving tap</span>
+          </label>
+        </template>
+        <!-- The weighed-portion path: a quantity in the basis unit, logged
+             directly — no serving needs to exist. "from weights" swaps in
+             container before/after fields and logs the delta. -->
+        <div class="adhoc" data-testid="adhoc-block">
+          <label v-if="!weighMode" class="adhoc-field">
+            <input
+              v-model.number="adhocQuantity"
+              data-testid="adhoc-quantity"
+              class="multiplier-input"
+              type="number"
+              min="1"
+              step="1"
+            />
+            {{ selectedItem.basisUnit }}
+          </label>
+          <template v-else>
+            <label class="adhoc-field">
+              before
+              <input
+                v-model.number="weighBefore"
+                data-testid="weigh-before"
+                class="multiplier-input"
+                type="number"
+                min="0"
+                step="1"
+              />
+            </label>
+            <label class="adhoc-field">
+              after
+              <input
+                v-model.number="weighAfter"
+                data-testid="weigh-after"
+                class="multiplier-input"
+                type="number"
+                min="0"
+                step="1"
+              />
+            </label>
+            <span class="weigh-delta" data-testid="weigh-delta"
+              >= {{ weighDelta ?? '?' }} {{ selectedItem.basisUnit }}</span
+            >
+          </template>
           <button
-            v-for="serving in selectedItem.servings"
-            :key="serving.id"
             type="button"
-            class="quick-log-button serving-button"
-            data-testid="serving-button"
-            @click="logServing(serving.id)"
+            class="quick-log-button adhoc-log"
+            data-testid="adhoc-log"
+            :disabled="adhocLogQuantity === null"
+            @click="logAdhoc"
           >
-            {{ serving.name }} ({{ serving.quantity }} {{ selectedItem.basisUnit }})
+            Log
+          </button>
+          <button
+            type="button"
+            class="weigh-toggle"
+            data-testid="weigh-toggle"
+            @click="weighMode = !weighMode"
+          >
+            {{ weighMode ? 'single amount' : 'from weights' }}
           </button>
         </div>
-        <label class="multiplier">
-          ×
-          <input
-            v-model.number="multiplier"
-            data-testid="multiplier-input"
-            class="multiplier-input"
-            type="number"
-            min="0.01"
-            step="0.25"
-          />
-          <span class="multiplier-hint">applies to the next tap</span>
-        </label>
       </template>
     </section>
 
@@ -480,6 +599,40 @@ const { refreshing } = useRefreshOnReactivate(load)
 .multiplier-hint {
   font-size: 0.85rem;
   opacity: 0.7;
+}
+
+.adhoc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.adhoc-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.weigh-delta {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.adhoc-log {
+  min-height: 2.5rem;
+  padding: 0 1rem;
+}
+
+.weigh-toggle {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  opacity: 0.7;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .entries {

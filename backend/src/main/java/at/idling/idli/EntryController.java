@@ -45,6 +45,15 @@ public class EntryController {
 		return intakeService.logServing(id, request);
 	}
 
+	// The ad-hoc sibling of the serving endpoint: same snapshot semantics, but
+	// the quantity is typed at log time instead of coming from an authored
+	// serving (issue #15).
+	@PostMapping("/items/{id}/entries")
+	@ResponseStatus(HttpStatus.CREATED)
+	public EntryGroupDto createItemEntryGroup(@PathVariable long id, @Valid @RequestBody NewItemEntryRequest request) {
+		return intakeService.logItem(id, request);
+	}
+
 	// UUID path variable: distinct from the numeric /entries/{id} space, and a
 	// malformed id is a 400 before the handler runs.
 	@DeleteMapping("/entry-groups/{groupId}")

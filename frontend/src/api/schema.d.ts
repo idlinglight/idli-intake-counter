@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/items/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createItemEntryGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items/{id}/servings": {
         parameters: {
             query?: never;
@@ -369,6 +385,12 @@ export interface components {
             loggedAt?: string;
             /** Format: int64 */
             metricId: number;
+        };
+        NewItemEntryRequest: {
+            /** Format: date-time */
+            loggedAt?: string;
+            /** Format: int64 */
+            quantity: number;
         };
         NewMetricRequest: {
             canonicalUnit: string;
@@ -685,6 +707,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    createItemEntryGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewItemEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["EntryGroupDto"];
+                };
             };
         };
     };
