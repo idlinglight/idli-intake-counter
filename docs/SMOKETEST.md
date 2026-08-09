@@ -51,6 +51,13 @@ Bonus: running it at every deploy leaves you with an actual backup file.
 curl -fsS https://<host>/ | grep -q '<title>idli intake counter</title>'
 ```
 
+**Which frontend build is serving (images with the frontend-sha display):** the
+header status line in a browser reads `backend: idli @ <sha> · frontend: <sha>`;
+the frontend sha must equal the suffix of the *frontend* image pin (the two pins
+can differ — CI is path-filtered). The sha is baked into the JS bundle, so a
+stale browser cache keeps showing the old sha until a hard refresh — that
+mismatch is the signal this display exists to catch, not a bug.
+
 ## Caveats worth knowing
 
 - **The SPA fallback makes any unknown path return 200** with `index.html`
