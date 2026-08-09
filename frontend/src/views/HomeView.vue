@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 import { formatAmount } from '@/utils/format'
+import { useRefreshOnReactivate } from '@/composables/useRefreshOnReactivate'
+import RefreshIndicator from '@/components/RefreshIndicator.vue'
 
 type DayView = components['schemas']['DayViewDto']
 type Metric = components['schemas']['MetricDto']
@@ -247,6 +249,10 @@ function entryTime(loggedAt: string | undefined): string {
 }
 
 onMounted(load)
+
+// Full load, not just refreshDay: items authored on another device should
+// appear in the picker too when this window wakes up.
+const { refreshing } = useRefreshOnReactivate(load)
 </script>
 
 <template>
@@ -312,6 +318,7 @@ onMounted(load)
 
     <section class="day">
       <h2 class="subtitle">Today</h2>
+      <RefreshIndicator v-if="refreshing" data-testid="refresh-indicator" />
       <ul v-if="dayRows.length > 0" class="entries">
         <li
           v-for="row in dayRows"

@@ -1,6 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import HomeView from '../HomeView.vue'
+import { STALE_AFTER_MS } from '@/composables/useRefreshOnReactivate'
+
+// Views now register window/document listeners (reactivation refresh) —
+// leaked mounts would make later tests' dispatched events fan out to every
+// previously mounted instance.
+enableAutoUnmount(afterEach)
 
 type ApiResult = { data?: unknown; error?: unknown }
 type ApiCall = (path: string, init?: unknown) => Promise<ApiResult>
@@ -297,5 +303,26 @@ describe('HomeView', () => {
     expect(deleteMock).toHaveBeenCalledWith('/api/entry-groups/{groupId}', {
       params: { path: { groupId: 'abc-123' } },
     })
+  })
+
+  it('reloads and shows the indicator when re-activated after going stale', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+    const dayCalls = () => getMock.mock.calls.filter(([path]) => path === '/api/days/today').length
+    expect(dayCalls()).toBe(1)
+
+    // Fake only Date so flushPromises (setTimeout-based) keeps working.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + STALE_AFTER_MS + 1000)
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+
+      expect(dayCalls()).toBe(2)
+      // Still inside MIN_VISIBLE_MS — the indicator explains the movement.
+      expect(wrapper.find('[data-testid="refresh-indicator"]').exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -4,6 +4,8 @@ import { api } from '@/api/client'
 import type { components } from '@/api/schema'
 import { formatAmount } from '@/utils/format'
 import ItemForm from '@/components/ItemForm.vue'
+import { useRefreshOnReactivate } from '@/composables/useRefreshOnReactivate'
+import RefreshIndicator from '@/components/RefreshIndicator.vue'
 
 type Metric = components['schemas']['MetricDto']
 type Item = components['schemas']['ItemDto']
@@ -223,6 +225,10 @@ function servingComputedLine(item: Item, serving: Serving): string {
 }
 
 onMounted(refresh)
+
+// Items authored in another window (or logged-against on mobile) should be
+// current when this long-open desktop tab wakes up.
+const { refreshing } = useRefreshOnReactivate(refresh)
 </script>
 
 <template>
@@ -265,6 +271,7 @@ onMounted(refresh)
 
     <section class="block">
       <h2 class="heading">Items</h2>
+      <RefreshIndicator v-if="refreshing" data-testid="refresh-indicator" />
 
       <button
         v-if="!itemFormOpen"
