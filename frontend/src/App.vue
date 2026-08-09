@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
-import BackendStatus from './components/BackendStatus.vue'
+import BuildInfo from './components/BuildInfo.vue'
 import LoginView from './views/LoginView.vue'
 import { useAuthStore } from './stores/auth'
 
@@ -34,7 +34,7 @@ async function logOut() {
       </nav>
 
       <div class="status-row">
-        <BackendStatus />
+        <BuildInfo />
         <button v-if="auth.authenticated" type="button" class="logout" @click="logOut">
           log out
         </button>

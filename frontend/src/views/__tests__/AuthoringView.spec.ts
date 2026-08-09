@@ -206,4 +206,27 @@ describe('AuthoringView', () => {
 
     expect(deleteMock).toHaveBeenCalledWith('/api/servings/{id}', { params: { path: { id: 11 } } })
   })
+
+  it('lists items newest first regardless of backend order', async () => {
+    // Backend serves id-ascending (its stable order); the view flips it so a
+    // just-created item appears at the top, next to the creation form.
+    getMock.mockImplementation(async (path: string) => {
+      if (path === '/api/metrics') return { data: metrics, response: new Response() }
+      if (path === '/api/items')
+        return {
+          data: [
+            { ...items[0], id: 1, name: 'older item' },
+            { ...items[0], id: 2, name: 'newer item' },
+          ],
+          response: new Response(),
+        }
+      return { error: {}, response: new Response(null, { status: 404 }) }
+    })
+
+    const wrapper = await mountView()
+
+    const names = wrapper.findAll('[data-testid="item"]').map((node) => node.text())
+    expect(names[0]).toContain('newer item')
+    expect(names[1]).toContain('older item')
+  })
 })

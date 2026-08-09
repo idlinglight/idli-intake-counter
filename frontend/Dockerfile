@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
+# Baked into the bundle so the served page can show which frontend build it is
+# (CI passes the commit sha; local builds fall back to "dev" in the UI).
+ARG VITE_GIT_SHA
 RUN npm run build
 
 # Runtime stage
