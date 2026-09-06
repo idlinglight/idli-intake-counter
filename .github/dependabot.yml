@@ -1,20 +1,25 @@
 # Dependabot VERSION updates — this file's presence on main is the enable
-# switch; no settings toggle involved. Pattern deliberately identical across
-# the author's repos (public and private): one set of cadence/guard settings
-# to remember, not several. cooldown mirrors the local npm guard
-# (min-release-age=3 in ~/.npmrc).
+# switch; no settings toggle involved. Cadence and guards are a per-repo
+# choice. cooldown mirrors the local npm guard (min-release-age=3 in ~/.npmrc).
 #
-# Deliberately NOT covered here: CVE-driven alerts / security updates are
-# separate repo-settings toggles (dependency graph enabled 2026-08-01;
-# alerts + security updates deliberately off for now). Docker base images
-# never get CVE alerts at all (not in the dependency graph) — for a critical
-# nginx/temurin advisory, bump manually instead of waiting for the weekly PR.
+# Deliberately NOT covered here — repo-settings toggles, verified 2026-09-06:
+# * Dependabot ALERTS: on. They are the signal for transitive CVEs, which
+#   nothing in this file ever fixes (Dependabot can't refresh in-range
+#   transitives for npm — a version-bump PR never drags a fix along).
+#   An alert = likely manual `npm update <transitive>` (see PR #19, #30).
+# * Dependabot SECURITY-UPDATE PRs: off, on purpose. They ignore cooldown
+#   and bump straight to latest, i.e. they systematically break the 3-day
+#   guard even when no bump to latest is needed. Keep them off.
+# * Docker base images never get alerts at all (not in the dependency
+#   graph) — for a critical nginx/temurin advisory, bump manually.
 #
 # ── Review traps for bump PRs in THIS repo ──────────────────────────────
-# * docker bumps: PR CI runs the verify jobs only — images are built AFTER
-#   merge to main. A broken base-image bump merges green. For a pre-merge
-#   proof, push the PR branch to build-image/<name> (that trigger exists
-#   for exactly this).
+# * docker bumps + action bumps inside build-and-push: PR CI runs the
+#   verify jobs only — images are built AFTER merge to main, so a broken
+#   base-image or buildx bump merges green. Pre-merge proof: push the PR
+#   head to build-image/<name>, then `gh workflow run backend.yml --ref
+#   build-image/<name>` (+ frontend.yml). A fresh-branch push alone does
+#   NOT trigger the path-filtered workflows (seen 2026-09-06, PR #25).
 # * springdoc majors track Spring Boot majors — a springdoc major PR only
 #   makes sense together with the matching Boot line.
 # * Boot minors/majors can relocate classes/packages (seen live: 4.1 moved
@@ -26,8 +31,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "19:00"
       timezone: Europe/Vienna
     cooldown:
       default-days: 3
@@ -53,8 +58,8 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "19:00"
       timezone: Europe/Vienna
     cooldown:
       default-days: 3
@@ -77,8 +82,8 @@ updates:
       - /frontend
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "19:00"
       timezone: Europe/Vienna
     cooldown:
       default-days: 3
@@ -109,6 +114,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
-      day: monday
-      time: "06:00"
+      day: friday
+      time: "19:00"
       timezone: Europe/Vienna
