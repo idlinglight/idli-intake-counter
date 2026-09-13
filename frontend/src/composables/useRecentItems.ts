@@ -2,8 +2,14 @@ import { ref } from 'vue'
 
 export const STORAGE_KEY = 'idli.recentItems'
 
-/** How many recent items the picker shows. */
-export const RECENT_SHOWN = 5
+/**
+ * How many recent items the picker shows. Deliberately oversized for the
+ * evaluation period (issue #38): the cap must exceed whatever "a good value"
+ * turns out to be, or "nobody reached past position 5" is self-fulfilling.
+ * 18 covers the whole catalog at the time of writing. Shrink once the data
+ * says where the useful depth ends.
+ */
+export const RECENT_SHOWN = 18
 
 /**
  * How many names are remembered. Deeper than shown so that deleted or
