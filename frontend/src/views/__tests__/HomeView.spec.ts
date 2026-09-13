@@ -385,14 +385,14 @@ describe('HomeView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="recent-group"]').exists()).toBe(false)
-    expect(wrapper.findAll('optgroup')).toHaveLength(0)
+    expect(wrapper.findAll('optgroup').map((g) => g.attributes('label'))).toEqual(['All items'])
     expect(wrapper.findAll('[data-testid="item-select"] option').map((o) => o.text())).toEqual([
       'log an item…',
       'protein bar',
     ])
   })
 
-  it('lists a just-logged serving item under Recent, above the stable full list', async () => {
+  it('lists a just-logged ad-hoc item under Recent, above the stable full list', async () => {
     const pasta = { ...proteinBar, id: 8, name: 'pasta', servings: [] }
     itemsData = [proteinBar, pasta]
     const wrapper = mount(HomeView)

@@ -46,7 +46,7 @@ const selectedItem = computed(
 // this device, most recent first, above the unchanged full list — a stable
 // list keeps spatial memory intact; the section on top saves the scroll.
 // Names that no longer resolve (item deleted or renamed) simply drop out.
-const { recentNames, touch: touchRecent } = useRecentItems()
+const { recentNames, touch: touchRecent, reload: reloadRecent } = useRecentItems()
 const recentItems = computed<Item[]>(() => {
   const byName = new Map(items.value.map((item) => [item.name, item]))
   return recentNames.value
@@ -155,6 +155,8 @@ async function load(): Promise<boolean> {
       return false
     }
     metrics.value = metricsResult.data
+    // Reactivation reloads pick up recency stamped by another window too.
+    reloadRecent()
     // Items only power the serving surface — a failed items fetch must not
     // take down water logging and the day list with it.
     items.value = itemsResult.data ?? []
@@ -204,9 +206,7 @@ async function logServing(servingId: number | undefined) {
     error.value = 'enter a multiplier before logging'
     return
   }
-  // Captured before the await: what was logged, even if the picker moves
-  // while the request is in flight.
-  const itemName = selectedItem.value?.name
+  const itemName = selectedItem.value?.name // before the await — see itemLogged
   error.value = ''
   try {
     const body = multiplier.value === 1 ? {} : { multiplier: multiplier.value }
@@ -229,6 +229,15 @@ async function logServing(servingId: number | undefined) {
     return
   }
   multiplier.value = 1
+  await itemLogged(itemName)
+}
+
+/**
+ * The tail every successful item log shares: stamp recency, then resync the
+ * day. Callers capture the item name *before* their await — the picker may
+ * move while the request is in flight, and it is what was logged that counts.
+ */
+async function itemLogged(itemName: string | undefined) {
   if (itemName) touchRecent(itemName)
   await refreshDay()
 }
@@ -305,8 +314,7 @@ async function logAdhoc() {
   adhocQuantity.value = null
   weighBefore.value = null
   weighAfter.value = null
-  if (itemName) touchRecent(itemName)
-  await refreshDay()
+  await itemLogged(itemName)
 }
 
 async function removeEntry(id: number | undefined) {
@@ -394,23 +402,23 @@ const { refreshing } = useRefreshOnReactivate(load)
       <h2 class="subtitle">Log item</h2>
       <select v-model.number="selectedItemId" class="item-select" data-testid="item-select">
         <option :value="null">log an item…</option>
-        <template v-if="recentItems.length > 0">
-          <optgroup label="Recent" data-testid="recent-group">
-            <option v-for="item in recentItems" :key="`recent-${item.id}`" :value="item.id">
-              {{ item.name }}
-            </option>
-          </optgroup>
-          <optgroup label="All items">
-            <option v-for="item in items" :key="item.id" :value="item.id">
-              {{ item.name }}
-            </option>
-          </optgroup>
-        </template>
-        <template v-else>
+        <!--
+          A recent item appears twice (same value in both groups). Vue's
+          select binding re-selects the first match on every re-render, so a
+          pick made from "All items" visibly moves to its Recent copy after
+          the next re-render. selectedItemId is unaffected; the full list
+          staying complete and stable is worth that flicker.
+        -->
+        <optgroup v-if="recentItems.length > 0" label="Recent" data-testid="recent-group">
+          <option v-for="item in recentItems" :key="`recent-${item.id}`" :value="item.id">
+            {{ item.name }}
+          </option>
+        </optgroup>
+        <optgroup label="All items">
           <option v-for="item in items" :key="item.id" :value="item.id">
             {{ item.name }}
           </option>
-        </template>
+        </optgroup>
       </select>
       <template v-if="selectedItem">
         <template v-if="(selectedItem.servings ?? []).length > 0">

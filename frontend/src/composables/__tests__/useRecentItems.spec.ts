@@ -44,8 +44,22 @@ describe('useRecentItems', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ nope: true }))
     expect(useRecentItems().recentNames.value).toEqual([])
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(['pasta', 7, null, 'oil']))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(['pasta', 7, null, 'oil', 'pasta']))
     expect(useRecentItems().recentNames.value).toEqual(['pasta', 'oil'])
+  })
+
+  it('merges a touch into what storage holds now, not the list read at setup', () => {
+    const a = useRecentItems()
+    const b = useRecentItems()
+    a.touch('pasta')
+    b.touch('oil')
+
+    expect(b.recentNames.value).toEqual(['oil', 'pasta'])
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toEqual(['oil', 'pasta'])
+    // The instance that didn't write catches up on reload.
+    expect(a.recentNames.value).toEqual(['pasta'])
+    a.reload()
+    expect(a.recentNames.value).toEqual(['oil', 'pasta'])
   })
 
   it('keeps working in memory when storage throws', () => {

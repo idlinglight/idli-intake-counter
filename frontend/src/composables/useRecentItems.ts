@@ -29,16 +29,21 @@ export const RECENT_STORED = 20
 export function useRecentItems() {
   const recentNames = ref<string[]>(read())
 
+  /** Re-read storage — for a long-open window that reloads its data. */
+  function reload() {
+    recentNames.value = read()
+  }
+
+  // Merges into what storage holds *now*, not into the list read at setup:
+  // two live instances on one device (PWA window + browser tab) would
+  // otherwise overwrite each other's stamps wholesale.
   function touch(name: string) {
-    const next = [name, ...recentNames.value.filter((other) => other !== name)].slice(
-      0,
-      RECENT_STORED,
-    )
+    const next = [name, ...read().filter((other) => other !== name)].slice(0, RECENT_STORED)
     recentNames.value = next
     write(next)
   }
 
-  return { recentNames, touch }
+  return { recentNames, touch, reload }
 }
 
 // Storage access is wrapped throughout: a private window or blocked site data
@@ -50,7 +55,8 @@ function read(): string[] {
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((entry): entry is string => typeof entry === 'string').slice(0, RECENT_STORED)
+    const names = parsed.filter((entry): entry is string => typeof entry === 'string')
+    return Array.from(new Set(names)).slice(0, RECENT_STORED)
   } catch {
     return []
   }

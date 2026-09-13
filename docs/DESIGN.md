@@ -79,5 +79,7 @@ One responsive app; each screen is designed for its primary surface rather than 
    logged on this device, above the unchanged full list. Client-side only
    (localStorage, keyed by item name) as a validation experiment: entries
    never reference items ([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)),
-   so a durable, cross-device signal would need `item.last_logged_at` —
-   worth adding only once the ordering proves useful.
+   so a durable, cross-device signal would need `item.last_logged_at`.
+   Evaluate after about a week of use (issue #38): promote the signal to the
+   backend, or delete the composable — don't build favorites on the
+   per-device store by inertia.
