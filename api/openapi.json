@@ -112,8 +112,8 @@
       "ExportEntryDto": {
         "properties": {
           "amount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "group": {
@@ -142,8 +142,8 @@
       "ExportItemAmountDto": {
         "properties": {
           "amount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "metric": {
@@ -167,8 +167,8 @@
             "type": "array"
           },
           "basisAmount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "basisUnit": {
@@ -219,8 +219,8 @@
             "type": "string"
           },
           "quantity": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           }
         },
@@ -261,8 +261,8 @@
       "ItemAmountDto": {
         "properties": {
           "amount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "metricId": {
@@ -317,8 +317,8 @@
             "type": "array"
           },
           "basisAmount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "basisUnit": {
@@ -360,7 +360,7 @@
             "type": "string"
           },
           "multiplier": {
-            "minimum": 0,
+            "exclusiveMinimum": 0,
             "type": "number"
           }
         },
@@ -369,8 +369,8 @@
       "NewEntryRequest": {
         "properties": {
           "amount": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           },
           "loggedAt": {
@@ -395,8 +395,8 @@
             "type": "string"
           },
           "quantity": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           }
         },
@@ -445,8 +445,8 @@
             "type": "string"
           },
           "quantity": {
+            "exclusiveMinimum": 0,
             "format": "int64",
-            "minimum": 0,
             "type": "integer"
           }
         },
