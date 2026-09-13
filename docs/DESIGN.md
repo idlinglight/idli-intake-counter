@@ -74,4 +74,10 @@ One responsive app; each screen is designed for its primary surface rather than 
    from day one, and the recovery story shouldn't lag it
 5. ✓ Items + servings + metric authoring (desktop surface), export formatVersion 2
 6. ✓ Serving logging + generalized mobile logging surface, export formatVersion 3
-7. Logging conveniences: favorites/repeat-last, budget glance, display units (kcal)
+7. Logging conveniences: favorites/repeat-last, budget glance, display units (kcal).
+   First piece: the item picker's **Recent** section — the last few items
+   logged on this device, above the unchanged full list. Client-side only
+   (localStorage, keyed by item name) as a validation experiment: entries
+   never reference items ([ADR-0007](adr/0007-snapshot-entries-and-import-compatibility.md)),
+   so a durable, cross-device signal would need `item.last_logged_at` —
+   worth adding only once the ordering proves useful.

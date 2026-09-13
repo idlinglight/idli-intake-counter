@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import HomeView from '../HomeView.vue'
 import { STALE_AFTER_MS } from '@/composables/useRefreshOnReactivate'
+import { STORAGE_KEY as RECENT_KEY } from '@/composables/useRecentItems'
 
 // Views now register window/document listeners (reactivation refresh) —
 // leaked mounts would make later tests' dispatched events fan out to every
@@ -59,6 +60,7 @@ let dayView: {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   itemsData = [proteinBar]
   dayView = {
     date: '2026-08-01',
@@ -373,6 +375,91 @@ describe('HomeView', () => {
     expect(wrapper.findAll('[data-testid="serving-button"]')).toHaveLength(0)
     expect(wrapper.find('[data-testid="multiplier-input"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="adhoc-quantity"]').exists()).toBe(true)
+  })
+
+
+  // ── Picker "Recent" section (issue #38) ──
+
+  it('shows no Recent section before anything was logged on this device', async () => {
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="recent-group"]').exists()).toBe(false)
+    expect(wrapper.findAll('optgroup')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="item-select"] option').map((o) => o.text())).toEqual([
+      'log an item…',
+      'protein bar',
+    ])
+  })
+
+  it('lists a just-logged serving item under Recent, above the stable full list', async () => {
+    const pasta = { ...proteinBar, id: 8, name: 'pasta', servings: [] }
+    itemsData = [proteinBar, pasta]
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="item-select"]').setValue(8)
+    await wrapper.get('[data-testid="adhoc-quantity"]').setValue(137)
+    await wrapper.get('[data-testid="adhoc-log"]').trigger('click')
+    await flushPromises()
+
+    const recent = wrapper.get('[data-testid="recent-group"]')
+    expect(recent.attributes('label')).toBe('Recent')
+    expect(recent.findAll('option').map((o) => o.text())).toEqual(['pasta'])
+    // The full list keeps its order — only the section on top changes.
+    const groups = wrapper.findAll('optgroup')
+    expect(groups[1]!.attributes('label')).toBe('All items')
+    expect(groups[1]!.findAll('option').map((o) => o.text())).toEqual(['protein bar', 'pasta'])
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual(['pasta'])
+  })
+
+  it('moves a serving-logged item to the front of Recent', async () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(['pasta']))
+    itemsData = [proteinBar, { ...proteinBar, id: 8, name: 'pasta', servings: [] }]
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+    await wrapper.findAll('[data-testid="serving-button"]')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="recent-group"]').findAll('option').map((o) => o.text()),
+    ).toEqual(['protein bar', 'pasta'])
+  })
+
+  it('does not stamp recency when the log fails', async () => {
+    postMock.mockResolvedValue({ error: { message: 'would round to 0' } })
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+    await wrapper.findAll('[data-testid="serving-button"]')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="recent-group"]').exists()).toBe(false)
+    expect(localStorage.getItem(RECENT_KEY)).toBeNull()
+  })
+
+  it('drops remembered names that no longer match an item', async () => {
+    // Deleted, renamed, or from a different dataset: unknown names vanish,
+    // known ones keep their order.
+    localStorage.setItem(RECENT_KEY, JSON.stringify(['gone', 'protein bar']))
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    expect(
+      wrapper.get('[data-testid="recent-group"]').findAll('option').map((o) => o.text()),
+    ).toEqual(['protein bar'])
+  })
+
+  it('selecting from Recent drives the same serving surface', async () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(['protein bar']))
+    const wrapper = mount(HomeView)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="item-select"]').setValue(4)
+    expect(wrapper.findAll('[data-testid="serving-button"]')).toHaveLength(2)
   })
 
   it('reloads and shows the indicator when re-activated after going stale', async () => {

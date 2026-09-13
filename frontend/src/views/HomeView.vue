@@ -5,6 +5,7 @@ import type { components } from '@/api/schema'
 import { formatAmount } from '@/utils/format'
 import { failureText } from '@/utils/failureText'
 import { useRefreshOnReactivate } from '@/composables/useRefreshOnReactivate'
+import { RECENT_SHOWN, useRecentItems } from '@/composables/useRecentItems'
 import RefreshIndicator from '@/components/RefreshIndicator.vue'
 
 type DayView = components['schemas']['DayViewDto']
@@ -40,6 +41,19 @@ const waterTotal = computed(
 const selectedItem = computed(
   () => items.value.find((item) => item.id === selectedItemId.value) ?? null,
 )
+
+// The picker's "Recent" section (issue #38): the last few items logged on
+// this device, most recent first, above the unchanged full list — a stable
+// list keeps spatial memory intact; the section on top saves the scroll.
+// Names that no longer resolve (item deleted or renamed) simply drop out.
+const { recentNames, touch: touchRecent } = useRecentItems()
+const recentItems = computed<Item[]>(() => {
+  const byName = new Map(items.value.map((item) => [item.name, item]))
+  return recentNames.value
+    .map((name) => byName.get(name))
+    .filter((item): item is Item => item !== undefined)
+    .slice(0, RECENT_SHOWN)
+})
 
 /**
  * The unified day list: entries sharing a groupId collapse into one row
@@ -190,6 +204,9 @@ async function logServing(servingId: number | undefined) {
     error.value = 'enter a multiplier before logging'
     return
   }
+  // Captured before the await: what was logged, even if the picker moves
+  // while the request is in flight.
+  const itemName = selectedItem.value?.name
   error.value = ''
   try {
     const body = multiplier.value === 1 ? {} : { multiplier: multiplier.value }
@@ -212,6 +229,7 @@ async function logServing(servingId: number | undefined) {
     return
   }
   multiplier.value = 1
+  if (itemName) touchRecent(itemName)
   await refreshDay()
 }
 
@@ -258,6 +276,7 @@ const adhocLogQuantity = computed(() => {
 // avoids), and the API contract carries no multiplier either.
 async function logAdhoc() {
   const itemId = selectedItem.value?.id
+  const itemName = selectedItem.value?.name
   const quantity = adhocLogQuantity.value
   // The in-flight guard keeps a double-tap from logging the quantity twice —
   // the inputs only clear after the POST resolves.
@@ -286,6 +305,7 @@ async function logAdhoc() {
   adhocQuantity.value = null
   weighBefore.value = null
   weighAfter.value = null
+  if (itemName) touchRecent(itemName)
   await refreshDay()
 }
 
@@ -374,9 +394,23 @@ const { refreshing } = useRefreshOnReactivate(load)
       <h2 class="subtitle">Log item</h2>
       <select v-model.number="selectedItemId" class="item-select" data-testid="item-select">
         <option :value="null">log an item…</option>
-        <option v-for="item in items" :key="item.id" :value="item.id">
-          {{ item.name }}
-        </option>
+        <template v-if="recentItems.length > 0">
+          <optgroup label="Recent" data-testid="recent-group">
+            <option v-for="item in recentItems" :key="`recent-${item.id}`" :value="item.id">
+              {{ item.name }}
+            </option>
+          </optgroup>
+          <optgroup label="All items">
+            <option v-for="item in items" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </option>
+          </optgroup>
+        </template>
+        <template v-else>
+          <option v-for="item in items" :key="item.id" :value="item.id">
+            {{ item.name }}
+          </option>
+        </template>
       </select>
       <template v-if="selectedItem">
         <template v-if="(selectedItem.servings ?? []).length > 0">
