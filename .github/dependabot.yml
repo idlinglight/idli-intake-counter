@@ -18,8 +18,8 @@
 #   verify jobs only — images are built AFTER merge to main, so a broken
 #   base-image or buildx bump merges green. Pre-merge proof: push the PR
 #   head to build-image/<name>, then `gh workflow run backend.yml --ref
-#   build-image/<name>` (+ frontend.yml). A fresh-branch push alone does
-#   NOT trigger the path-filtered workflows (seen 2026-09-06, PR #25).
+#   build-image/<name>` (+ frontend.yml). Always dispatch: it is the one
+#   trigger in those workflows without a `paths:` filter.
 # * springdoc majors track Spring Boot majors — a springdoc major PR only
 #   makes sense together with the matching Boot line.
 # * Boot minors/majors can relocate classes/packages (seen live: 4.1 moved
