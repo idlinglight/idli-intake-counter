@@ -54,3 +54,18 @@ npm run test:unit
 CI builds multi-arch images (`…-backend`, `…-frontend`, tagged `sha-<short>`) and publishes
 the chart to ghcr.io. A separate Flux-managed GitOps repo pins exact chart and image versions
 and deploys — staging cluster first, then production. See [ADR-0003](docs/adr/0003-chart-as-oci-artifact.md).
+
+## License
+
+[0BSD](LICENSE) — use it however you like, no attribution required. Much of
+this code was written together with an AI coding agent (see the commit
+trailers); a license without conditions means nobody has to work out where
+human authorship begins and ends.
+
+Not covered by it, because they are not mine to license:
+
+- the Vue logo (`frontend/src/assets/logo.svg`, `frontend/public/favicon.ico`) —
+  © Evan You, [CC BY-NC-SA 4.0 with extra conditions](https://github.com/vuejs/art)
+- the Maven wrapper (`backend/mvnw`, `backend/mvnw.cmd`, `backend/.mvn/`) — Apache-2.0
+
+Security reports: see [SECURITY.md](SECURITY.md).
