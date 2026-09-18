@@ -232,8 +232,10 @@ class AuthFlowTest {
 	}
 
 	private ResponseEntity<Void> formLogin(Map<String, String> cookies, String password) {
-		// The login POST is itself CSRF-protected: fetch the XSRF-TOKEN cookie
-		// first, exactly like the SPA does.
+		// Mirrors the SPA, which has asked for the session status — and thereby
+		// picked up the XSRF-TOKEN cookie — before it ever logs in. The login
+		// POST itself is CSRF-exempt (see SecurityConfig); the prefetch-less
+		// path is pinned by reloginAfterLogoutNeedsNoCsrfToken.
 		sessionStatus(cookies);
 		return formLoginWithoutPrefetch(cookies, password);
 	}
