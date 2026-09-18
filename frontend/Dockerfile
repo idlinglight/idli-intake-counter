@@ -12,5 +12,8 @@ RUN npm run build
 # Runtime stage
 FROM nginx:alpine-slim
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Nothing else validates nginx.conf before a pod tries to start with it:
+# fail the image build instead.
+RUN nginx -t
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

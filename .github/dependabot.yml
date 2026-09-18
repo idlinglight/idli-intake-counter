@@ -49,8 +49,6 @@ updates:
       # https://github.com/vuejs/language-tools/issues/5381
       # Range (not the whole major) so 7.1 DOES get proposed when it ships.
       # Still current as of 2026-07-31 (latest = 7.0.2, 7.1 dev-only).
-      # (Sister repos also ignore vite majors — NOT carried here: that
-      # guard is electron-vite peer-range specific; this repo runs vite 8.)
       - dependency-name: typescript
         versions: ["7.0.x"]
 

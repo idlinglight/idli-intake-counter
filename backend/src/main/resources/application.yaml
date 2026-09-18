@@ -13,7 +13,10 @@ spring:
       # The default ("never") strips exception messages from error bodies.
       # The import 400s carry the actionable reason (unsupported formatVersion,
       # unknown metric, …) — on the recovery gesture, a bare status code is not
-      # a diagnosis. All messages here are ours and secret-free. NB Boot 4
+      # a diagnosis. Our own messages are secret-free; framework messages
+      # (JSON parse errors, type mismatches, constraint violations) pass
+      # through too. Accepted: only the authenticated owner ever gets a body —
+      # anonymous requests end in a bare 401 — and the schema is public. NB Boot 4
       # moved this here from the classic server.error.* prefix (BasicErrorController
       # binds WebProperties; server.error.* silently no-ops for MVC bodies).
       include-message: always

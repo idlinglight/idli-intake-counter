@@ -37,8 +37,10 @@ class SecurityConfigTest {
 			"{bcrypt}$2y$10$D9SLsk6jSCVjHHSqAnIz3ew6xjgTD1pUB//pXvqn85ASYnnJCdGJi",
 			// Truncated / line-wrapped Secret value.
 			"$2y$10$D9SLsk6jSCVjHHSqAnIz3ew6xjgTD1pUB",
-			// Not bcrypt at all (htpasswd's default MD5 variant).
-			"$apr1$vBmPZbZR$Bpu2yZBjWrqAgQGdBLqYo1" })
+			// Not bcrypt at all (htpasswd's default MD5 variant). Like the
+			// bcrypt fixtures, a hash of TestAuth.PASSWORD:
+			// openssl passwd -apr1 -salt idlitest idli-test-password
+			"$apr1$idlitest$G.Z/amhnO35xbhcldCTV1." })
 	void rejectsAMalformedHash(String hash) {
 		assertThatIllegalArgumentException().isThrownBy(() -> config.userDetailsService(hash))
 				.withMessageContaining("bare bcrypt hash");
