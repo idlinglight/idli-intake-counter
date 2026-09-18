@@ -22,7 +22,10 @@ curl -fsS https://<host>/api/hello
 `gitSha` **must equal the suffix of the image tag pinned in the release values**
 (tag `sha-8aea221` → `"gitSha": "8aea221"`). This one request proves
 ingress → backend routing *and* that the pinned version is the one serving.
-`/api/hello` is deliberately public — it leaks nothing but the sha.
+`/api/hello` is deliberately public. It discloses the build sha — and, the
+repository being public, thereby the exact dependency set of that build.
+Accepted: the frontend sha sits in the JS bundle anyway; the consequence is
+to deploy merged security bumps promptly rather than to hide the sha.
 
 ## 2b. Auth is actually gating (images with auth, chart ≥ 0.5.0)
 
@@ -58,6 +61,16 @@ can differ — CI is path-filtered). The sha is baked into the JS bundle, so a
 stale browser cache keeps showing the old sha until a hard refresh — that
 mismatch is the signal this display exists to catch, not a bug.
 
+**Security headers on the SPA shell (frontend images with the nginx headers):**
+
+```sh
+curl -fsSI https://<host>/ | grep -i -E '^(x-frame-options|x-content-type-options|referrer-policy|server):'
+# → DENY, nosniff, no-referrer — and "server: nginx" without a version
+```
+
+The API's responses get theirs from Spring Security; the shell and the static
+assets are nginx's own, so this is the only place those three are checked.
+
 ## Caveats worth knowing
 
 - **The SPA fallback makes any unknown path return 200** with `index.html`
@@ -68,6 +81,6 @@ mismatch is the signal this display exists to catch, not a bug.
 - **Database era (chart ≥ 0.4.0, images with water logging):** the backend
   requires `SPRING_DATASOURCE_URL/USERNAME/PASSWORD` in the release values
   (`backend.env`; credentials via an out-of-band Secret). The earlier `nodb`
-  walking-skeleton profile no longer exists. Optional deeper probe:
-  `curl -fsS https://<host>/api/days/$(date +%F)` returns the day view JSON,
-  proving routing *and* the database connection in one request.
+  walking-skeleton profile no longer exists. The probe that proves routing
+  *and* the database connection in one request is the authenticated day view
+  in §2b — anonymously, every data endpoint answers 401.
