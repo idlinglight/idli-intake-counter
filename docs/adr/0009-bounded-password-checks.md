@@ -73,6 +73,24 @@ The price: anybody can close password login for everybody — which here means
 for one person, and only for *new* logins. That is the lockout trade ADR-0005's
 amendment makes affordable.
 
+### The hash is the operator's: no upgrade, no minimum cost
+
+Spring Security would answer a successful check of a hash below its default
+cost (10) by re-encoding the password and keeping the result — here: in memory,
+until the next restart. The guard switches that off (`upgradeEncoding()` is
+always false). It bought nothing, and it cost a second bcrypt after a
+*successful* check, through the same guard: a login that had just succeeded
+could still be refused as busy or closed.
+
+The app does not refuse to start on a cheap hash either. The cost is chosen
+where hashes are minted (`scripts/mint-auth-hash.sh`: 12 — which is what is at
+rest in a deployment in practice); a floor in the app would be that policy a
+second time, and it would tax every test and dev run, whose fixtures are cheap
+on purpose, or need an escape hatch for them. The startup guard checks the
+hash's *shape*, because a mangled hash locks the owner out silently. A cheap
+one does not, and online guessing is bounded by the fuse whatever a single
+check costs.
+
 ### Why 418
 
 The blown fuse needs an answer that the SPA, and the operator behind curl or an

@@ -48,7 +48,15 @@ public class SecurityConfig {
 	// its enum constant for 418 in 7.0.
 	static final int LOGIN_CLOSED_STATUS = 418;
 
-	// A bare bcrypt hash as scripts/mint-auth-hash.sh emits it.
+	// A bare bcrypt hash as scripts/mint-auth-hash.sh emits it. Its SHAPE only:
+	// any two-digit cost passes, on purpose (ADR-0009). This guard exists for
+	// mangles that lock the owner out silently, and a cheap hash is not one —
+	// it works. The cost is decided where hashes are minted (the script: 12,
+	// which is what sits in a deployment's Secret in practice); a floor here
+	// would be that policy a second time, and would tax every test and dev
+	// run, whose fixtures are cheap on purpose (TestAuth), or need an escape
+	// hatch for them. Nor does the app ever "upgrade" a cheap hash by itself:
+	// see GuardedPasswordEncoder.upgradeEncoding().
 	private static final Pattern BCRYPT_HASH = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
 	@Bean
