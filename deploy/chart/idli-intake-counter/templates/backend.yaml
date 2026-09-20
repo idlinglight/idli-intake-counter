@@ -40,7 +40,7 @@ spec:
              is named after the chart. Fixed across releases, and well inside
              the 63 characters a container name may have. */}}
         - name: {{ .Chart.Name }}-backend
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          image: {{ include "idli.image" .Values.backend.image | quote }}
           {{- with .Values.backend.env }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -48,14 +48,23 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          {{- /* Generous window for datasource init + Flyway before the
-               liveness/readiness probes take over. */}}
+          {{- /* Window for JVM start, datasource init and Flyway before the
+               liveness/readiness probes take over: 90 × 2 s = 3 minutes. A
+               cold start on a small node — two cores, shared with an image
+               being unpacked and the old pod still serving, or with everything
+               else after a node reboot — can take several times what a warm
+               one does; a generous window costs nothing when the start is
+               healthy and only delays the verdict on one that hangs. NB each
+               attempt before the port opens shows up as a "Startup probe
+               failed … connection refused" warning event. That is what waiting
+               looks like; only "failed startup probe, will be restarted" means
+               the window ran out. */}}
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
             periodSeconds: 2
-            failureThreshold: 30
+            failureThreshold: 90
           {{- /* A failed liveness probe restarts the pod, and a restart drops
                every in-memory session — the most expensive thing a probe can
                do to this app. So it tolerates a busy moment (3 s instead of

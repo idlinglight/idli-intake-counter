@@ -22,6 +22,10 @@ curl -fsS https://<host>/api/hello
 `gitSha` **must equal the suffix of the image tag pinned in the release values**
 (tag `sha-8aea221` → `"gitSha": "8aea221"`). This one request proves
 ingress → backend routing *and* that the pinned version is the one serving.
+With a digest pin (`image.digest`, chart ≥ 0.5.2) the tag in the values no
+longer decides what is pulled — it is only the name of what the digest is
+supposed to be, and this comparison is what proves the digest was copied from
+the right tag.
 `/api/hello` is deliberately public. It discloses the build sha — and, the
 repository being public, thereby the exact dependency set of that build.
 Accepted: the frontend sha sits in the JS bundle anyway; the consequence is
@@ -45,7 +49,8 @@ Fix the variable rather than retrying.
 ## 2c. The backup gesture works (images with export/import)
 
 ```sh
-curl -fsS -u user:$PW https://<host>/api/export -o idli-export.json
+curl -fsS -u user:$PW https://<host>/api/export -o idli-export.json -w '%{http_code}, %{size_download} bytes\n'
+# → 200, <some thousand> bytes
 ```
 
 Export **is** the backup strategy (ADR-0004) — a release where it fails has no
@@ -55,8 +60,13 @@ Bonus: running it at every deploy leaves you with an actual backup file.
 ## 3. Frontend, through the ingress
 
 ```sh
-curl -fsS https://<host>/ | grep -q '<title>idli intake counter</title>'
+curl -fsS https://<host>/ | grep -o '<title>[^<]*</title>'
+# → <title>idli intake counter</title>
 ```
+
+Every command here prints its verdict: a check that reports only through its
+exit code looks exactly the same passing and failing when a human runs it. No
+output from this one means no title came back.
 
 **Which frontend build is serving (images with the frontend-sha display):** the
 header status line in a browser reads `backend: idli @ <sha> · frontend: <sha>`;
@@ -108,6 +118,13 @@ for a password check was taken at that moment. Retry.
 
 ## Caveats worth knowing
 
+- **Probe warnings right after a rollout are what waiting looks like.** The
+  probes start before the processes listen, so every start leaves `Startup
+  probe failed … connection refused` (backend) and often one `Readiness probe
+  failed … connection refused` (frontend) among the events. They mean something
+  only when followed by `failed startup probe, will be restarted`, or when the
+  RESTARTS column counts up. The number of such backend warnings × 2 s is
+  roughly how long the JVM took to open its port.
 - **The SPA fallback makes any unknown path return 200** with `index.html`
   (nginx `try_files`). Arbitrary-path probes therefore prove nothing; only
   `/api/*` paths give honest 404s from the backend.
