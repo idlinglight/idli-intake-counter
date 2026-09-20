@@ -22,6 +22,10 @@ curl -fsS https://<host>/api/hello
 `gitSha` **must equal the suffix of the image tag pinned in the release values**
 (tag `sha-8aea221` → `"gitSha": "8aea221"`). This one request proves
 ingress → backend routing *and* that the pinned version is the one serving.
+With a digest pin (`image.digest`, chart ≥ 0.5.2) the tag in the values no
+longer decides what is pulled — it is only the name of what the digest is
+supposed to be, and this comparison is what proves the digest was copied from
+the right tag.
 `/api/hello` is deliberately public. It discloses the build sha — and, the
 repository being public, thereby the exact dependency set of that build.
 Accepted: the frontend sha sits in the JS bundle anyway; the consequence is
@@ -114,6 +118,13 @@ for a password check was taken at that moment. Retry.
 
 ## Caveats worth knowing
 
+- **Probe warnings right after a rollout are what waiting looks like.** The
+  probes start before the processes listen, so every start leaves `Startup
+  probe failed … connection refused` (backend) and often one `Readiness probe
+  failed … connection refused` (frontend) among the events. They mean something
+  only when followed by `failed startup probe, will be restarted`, or when the
+  RESTARTS column counts up. The number of such backend warnings × 2 s is
+  roughly how long the JVM took to open its port.
 - **The SPA fallback makes any unknown path return 200** with `index.html`
   (nginx `try_files`). Arbitrary-path probes therefore prove nothing; only
   `/api/*` paths give honest 404s from the backend.
