@@ -45,7 +45,8 @@ Fix the variable rather than retrying.
 ## 2c. The backup gesture works (images with export/import)
 
 ```sh
-curl -fsS -u user:$PW https://<host>/api/export -o idli-export.json
+curl -fsS -u user:$PW https://<host>/api/export -o idli-export.json -w '%{http_code}, %{size_download} bytes\n'
+# → 200, <some thousand> bytes
 ```
 
 Export **is** the backup strategy (ADR-0004) — a release where it fails has no
@@ -55,8 +56,13 @@ Bonus: running it at every deploy leaves you with an actual backup file.
 ## 3. Frontend, through the ingress
 
 ```sh
-curl -fsS https://<host>/ | grep -q '<title>idli intake counter</title>'
+curl -fsS https://<host>/ | grep -o '<title>[^<]*</title>'
+# → <title>idli intake counter</title>
 ```
+
+Every command here prints its verdict: a check that reports only through its
+exit code looks exactly the same passing and failing when a human runs it. No
+output from this one means no title came back.
 
 **Which frontend build is serving (images with the frontend-sha display):** the
 header status line in a browser reads `backend: idli @ <sha> · frontend: <sha>`;
