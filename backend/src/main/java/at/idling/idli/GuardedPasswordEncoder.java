@@ -41,9 +41,15 @@ final class GuardedPasswordEncoder implements PasswordEncoder {
 		return guarded(() -> delegate.encode(rawPassword));
 	}
 
+	// Never. The hash is deploy-time configuration (a Secret), not something
+	// this app owns: an "upgrade" would live in memory until the next restart
+	// and no longer. Delegating would have a price, though — for a hash below
+	// the default cost, DaoAuthenticationProvider answers a SUCCESSFUL check by
+	// re-encoding the password: a second bcrypt through guarded(), where a
+	// login that had just succeeded could still be refused as busy or closed.
 	@Override
 	public boolean upgradeEncoding(String encodedPassword) {
-		return delegate.upgradeEncoding(encodedPassword);
+		return false;
 	}
 
 	// Both refusals happen BEFORE any bcrypt. The fuse is checked first and

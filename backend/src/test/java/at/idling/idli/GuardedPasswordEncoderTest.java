@@ -6,7 +6,14 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 import java.time.Duration;
 import java.time.InstantSource;
@@ -103,6 +110,31 @@ class GuardedPasswordEncoderTest {
 		assertThatExceptionOfType(PasswordLoginClosedException.class).isThrownBy(() -> encoder.matches(RIGHT, RIGHT));
 		assertThatExceptionOfType(PasswordLoginClosedException.class).isThrownBy(() -> encoder.encode(RIGHT));
 		assertThat(delegate.calls).isEqualTo(callsBefore);
+	}
+
+	// The one test here with Spring Security's real provider and real bcrypt:
+	// the behaviour in question is the provider's, not the guard's.
+	@Test
+	void aSuccessfulLoginNeverReencodesTheConfiguredHash() {
+		// Below the cost the default encoder writes (10) — which
+		// scripts/mint-auth-hash.sh (12) never produces, but the startup guard
+		// accepts. The provider would answer a successful check by re-encoding
+		// the password at 10 and swapping the stored hash: a second bcrypt, and
+		// a second trip through the guard, where a login whose check had just
+		// SUCCEEDED could still be refused as busy or closed.
+		String configured = "{bcrypt}" + new BCryptPasswordEncoder(4).encode(RIGHT);
+		InMemoryUserDetailsManager users = new InMemoryUserDetailsManager(
+				User.withUsername(TestAuth.USERNAME).password(configured).roles("USER").build());
+		DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
+		provider.setUserDetailsPasswordService(users);
+		provider.setPasswordEncoder(new GuardedPasswordEncoder(
+				PasswordEncoderFactories.createDelegatingPasswordEncoder(), new CredentialCheckPermits(1), fuse));
+
+		Authentication result = provider
+				.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(TestAuth.USERNAME, RIGHT));
+
+		assertThat(result.isAuthenticated()).isTrue();
+		assertThat(users.loadUserByUsername(TestAuth.USERNAME).getPassword()).isEqualTo(configured);
 	}
 
 	@Test
