@@ -36,6 +36,9 @@ class AuthFlowTest {
 	@Autowired
 	private TestRestTemplate restTemplate;
 
+	@Autowired
+	private CredentialCheckPermits credentialCheckPermits;
+
 	@Test
 	void apiRequiresAuthentication() {
 		ResponseEntity<Void> response = restTemplate.getForEntity("/api/days/today", Void.class);
@@ -220,6 +223,84 @@ class AuthFlowTest {
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 		// NullRequestCache: a bare 401 must not allocate a server session.
+		assertThat(response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE))
+				.noneMatch(cookie -> cookie.startsWith("JSESSIONID="));
+	}
+
+	@Test
+	void saturatedCredentialChecksAnswer429AndLeaveSessionsAlone() {
+		Map<String, String> cookies = new LinkedHashMap<>();
+		assertThat(formLogin(cookies, TestAuth.PASSWORD).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+		// Every permit taken, as that many bcrypt runs in flight would. Given
+		// back in finally: this context is shared, and a drained semaphore would
+		// turn every later Basic request of the suite into a 429.
+		int taken = 0;
+		try {
+			while (credentialCheckPermits.tryAcquire()) {
+				taken++;
+			}
+
+			// Refused before anybody looks at the password — the right one too.
+			ResponseEntity<Void> login = formLoginWithoutPrefetch(new LinkedHashMap<>(), TestAuth.PASSWORD);
+			assertThat(login.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+			assertThat(login.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");
+
+			ResponseEntity<Void> basic = restTemplate.withBasicAuth(TestAuth.USERNAME, TestAuth.PASSWORD)
+					.getForEntity("/api/days/today", Void.class);
+			assertThat(basic.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+			assertThat(basic.getHeaders().getFirst(HttpHeaders.RETRY_AFTER)).isEqualTo("1");
+			assertThat(basic.getHeaders().getOrEmpty(HttpHeaders.WWW_AUTHENTICATE)).isEmpty();
+
+			// A session costs no bcrypt, so whoever is logged in never notices ...
+			assertThat(get("/api/days/today", cookies, DayViewDto.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+			// ... and neither does the kubelet.
+			assertThat(restTemplate.getForEntity("/actuator/health/liveness", String.class).getStatusCode())
+					.isEqualTo(HttpStatus.OK);
+		} finally {
+			for (int i = 0; i < taken; i++) {
+				credentialCheckPermits.release();
+			}
+		}
+
+		assertThat(formLogin(new LinkedHashMap<>(), TestAuth.PASSWORD).getStatusCode())
+				.isEqualTo(HttpStatus.NO_CONTENT);
+	}
+
+	@Test
+	void failedChecksGiveTheirPermitsBack() {
+		// More failures than there are permits, through both doors and with an
+		// unknown username (Spring Security's dummy check): one permit leaked
+		// per failure would leave none for the right password.
+		for (int i = 0; i < 3; i++) {
+			assertThat(formLoginWithoutPrefetch(new LinkedHashMap<>(), "wrong-password").getStatusCode())
+					.isEqualTo(HttpStatus.UNAUTHORIZED);
+			assertThat(restTemplate.withBasicAuth(TestAuth.USERNAME, "wrong-password")
+					.getForEntity("/api/days/today", Void.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+			assertThat(restTemplate.withBasicAuth("nobody", TestAuth.PASSWORD)
+					.getForEntity("/api/days/today", Void.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+		}
+
+		assertThat(formLogin(new LinkedHashMap<>(), TestAuth.PASSWORD).getStatusCode())
+				.isEqualTo(HttpStatus.NO_CONTENT);
+	}
+
+	@Test
+	void multipartLoginIsNotRead() {
+		// spring.servlet.multipart.enabled=false. With Boot's default the
+		// security filters' getParameter() would parse this body before
+		// authentication — and this request, right password and all, would log
+		// in with 204. Nothing here takes multipart, so nothing reads it.
+		MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+		form.add("username", TestAuth.USERNAME);
+		form.add("password", TestAuth.PASSWORD);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+		ResponseEntity<Void> response = restTemplate.exchange("/api/auth/login", HttpMethod.POST,
+				new HttpEntity<>(form, headers), Void.class);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 		assertThat(response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE))
 				.noneMatch(cookie -> cookie.startsWith("JSESSIONID="));
 	}
