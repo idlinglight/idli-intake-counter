@@ -3,6 +3,14 @@ backend:
     repository: ghcr.io/idlinglight/idli-intake-counter-backend
     # Pinned to a concrete sha-<short7> tag by the GitOps consumer.
     tag: sha-0000000
+    # Optional, and stricter: pin by digest ("sha256:" + 64 hex characters, as
+    # the registry shows it for that tag — for these multi-arch images that is
+    # the digest of the image index, not of one architecture's manifest). The
+    # image is then pulled as repository@digest and the tag is NOT used for
+    # pulling: a tag can be moved in a registry, a digest cannot. Keep the tag
+    # next to it anyway, as the name of what the digest is — the smoke test's
+    # gitSha check (docs/SMOKETEST.md §2) then proves the two agree.
+    digest: ""
   # Environment for the backend container, passed through verbatim —
   # plain values and valueFrom/secretKeyRef entries both work. The backend
   # REQUIRES two things here or the template fails to render:
@@ -39,6 +47,8 @@ frontend:
   image:
     repository: ghcr.io/idlinglight/idli-intake-counter-frontend
     tag: sha-0000000
+    # Optional digest pin — see backend.image.digest.
+    digest: ""
   resources:
     requests:
       cpu: 10m

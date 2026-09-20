@@ -38,6 +38,15 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       - run: helm lint "$CHART_DIR" --set-json "$DS_VALUES"
       - run: helm template smoke "$CHART_DIR" --set-json "$DS_VALUES" > /dev/null
+      # The digest-pinned form of the image references is a template branch the
+      # default values never take; render it, and check it came out as
+      # repository@digest for both components.
+      - name: Render with image digests
+        run: |
+          digest="sha256:$(printf '%064d' 0)"
+          helm template smoke "$CHART_DIR" --set-json "$DS_VALUES" \
+            --set backend.image.digest="$digest" --set frontend.image.digest="$digest" \
+            | grep -c "@${digest}\"" | grep -qx 2
 
   publish:
     if: github.event_name != 'pull_request'

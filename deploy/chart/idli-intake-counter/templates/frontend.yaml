@@ -20,7 +20,7 @@ spec:
       containers:
         {{- /* Named after the chart — see backend.yaml. */}}
         - name: {{ .Chart.Name }}-frontend
-          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          image: {{ include "idli.image" .Values.frontend.image | quote }}
           ports:
             - name: http
               containerPort: 80
