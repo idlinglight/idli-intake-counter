@@ -19,6 +19,14 @@ backend:
   #     valueFrom: { secretKeyRef: { name: idli-db-app, key: password } }
   #   - name: IDLI_AUTH_PASSWORD_HASH
   #     valueFrom: { secretKeyRef: { name: idli-auth, key: password-hash } }
+  # Optional — the bounds on password checking (ADR-0009; backend images that
+  # have them). The defaults are in the backend's application.yaml:
+  #   - name: IDLI_AUTH_MAX_CONCURRENT_CHECKS     # default 2
+  #     value: "1"
+  #   - name: IDLI_AUTH_FUSE_MAX_FAILED_CHECKS    # default 20, per window
+  #     value: "10"
+  #   - name: IDLI_AUTH_FUSE_WINDOW               # default 1h
+  #     value: 30m
   env: []
   resources:
     requests:

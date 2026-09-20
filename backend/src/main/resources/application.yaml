@@ -20,6 +20,14 @@ spring:
       # moved this here from the classic server.error.* prefix (BasicErrorController
       # binds WebProperties; server.error.* silently no-ops for MVC bodies).
       include-message: always
+  servlet:
+    multipart:
+      # No endpoint takes multipart. Boot's default registers the parser on the
+      # DispatcherServlet anyway, and then the security filters' getParameter()
+      # parses a multipart body BEFORE authentication — observed: a multipart
+      # login POST with the right password logs in. Off, that same request
+      # carries no readable password (pinned in AuthFlowTest).
+      enabled: false
   # Datasource credentials are intentionally not hardcoded here.
   # Local dev: spring-boot-docker-compose picks them up from compose.yaml.
   # Tests: Testcontainers provides them via @ServiceConnection.
@@ -32,6 +40,21 @@ idli:
   # default here: like the datasource credentials, the app must fail to start
   # without it. Value is the bare bcrypt hash of the single login password
   # (ADR-0005); mint one with scripts/mint-auth-hash.sh.
+  auth:
+    # ADR-0009. A password check is a bcrypt computation anybody can ask for,
+    # so its cost is bounded twice. At most this many run at once; a caller
+    # beyond that is refused immediately with 429, nobody queues.
+    # (env: IDLI_AUTH_MAX_CONCURRENT_CHECKS)
+    max-concurrent-checks: 2
+    fuse:
+      # And at most this many FAILED checks inside one window: then the login
+      # fuse blows and password verification stays off (418) until the process
+      # restarts — deleting the backend pod is the release. Existing sessions
+      # keep working throughout. Staying just under the limit buys 19 bcrypt
+      # checks per hour, a few hundred milliseconds of CPU each.
+      # (env: IDLI_AUTH_FUSE_MAX_FAILED_CHECKS, IDLI_AUTH_FUSE_WINDOW)
+      max-failed-checks: 20
+      window: 1h
 
 server:
   # TLS terminates at the ingress. "framework" applies X-Forwarded-* so

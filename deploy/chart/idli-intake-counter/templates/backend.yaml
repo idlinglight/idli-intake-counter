@@ -33,7 +33,13 @@ spec:
         app.kubernetes.io/component: backend
     spec:
       containers:
-        - name: backend
+        {{- /* Named after the chart, not just "backend": log and metrics
+             pipelines label by container name, and a bare "backend" is only
+             unique in a cluster by luck. This way the container carries the
+             same name as its image — and as the Deployment, when the release
+             is named after the chart. Fixed across releases, and well inside
+             the 63 characters a container name may have. */}}
+        - name: {{ .Chart.Name }}-backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           {{- with .Values.backend.env }}
           env:
@@ -43,17 +49,24 @@ spec:
             - name: http
               containerPort: 8080
           {{- /* Generous window for datasource init + Flyway before the
-               default-timing liveness/readiness probes take over. */}}
+               liveness/readiness probes take over. */}}
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
             periodSeconds: 2
             failureThreshold: 30
+          {{- /* A failed liveness probe restarts the pod, and a restart drops
+               every in-memory session — the most expensive thing a probe can
+               do to this app. So it tolerates a busy moment (3 s instead of
+               the 1 s default, times the default 3 failures) before concluding
+               the process is wedged. Readiness keeps the default: taking a
+               slow pod out of rotation costs nothing and heals by itself. */}}
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

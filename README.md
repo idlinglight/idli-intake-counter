@@ -6,7 +6,8 @@ Spring Boot + Vue monorepo and deployed to k3s via a Helm chart published as an 
 **Status: functional.** The core loop is closed: define metrics and items with
 per-basis composition and servings (ADR-0008), log servings or ad-hoc amounts
 from the mobile surface (amounts snapshot at log time, ADR-0007), all behind a
-single-user login, with versioned JSON export/import as the recovery story
+single-user login (ADR-0005; what checking its password may cost is bounded,
+ADR-0009), with versioned JSON export/import as the recovery story
 (ADR-0004). Next: logging conveniences
 (see [docs/DESIGN.md](docs/DESIGN.md)).
 

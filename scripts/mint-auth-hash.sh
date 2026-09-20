@@ -18,4 +18,6 @@ fi
 
 # -i reads the password from stdin; -b would pass it as an argument, putting
 # it in this process's argv where any local user can read it off ps.
+# -C 12: this line is where the hash's cost gets decided. The backend checks a
+# hash's shape at startup, not its cost, and never re-encodes one (ADR-0009).
 printf '%s\n' "$password" | htpasswd -niBC 12 "" | cut -d: -f2

@@ -1,5 +1,6 @@
 package at.idling.idli;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,8 +8,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -21,6 +25,8 @@ import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 
+import java.time.Duration;
+import java.time.InstantSource;
 import java.util.regex.Pattern;
 
 @Configuration
@@ -31,7 +37,26 @@ public class SecurityConfig {
 	// authorization is simply "authenticated or not".
 	static final String USERNAME = "user";
 
-	// A bare bcrypt hash as scripts/mint-auth-hash.sh emits it.
+	// The answer while the login fuse is blown (ADR-0009 has the long version).
+	// 418 is reserved as "(Unused)" by RFC 9110 precisely because servers kept
+	// using it for their own purposes — which is what makes it useful here: no
+	// proxy, framework or browser between this app and its owner ever produces
+	// or interprets one, so a 418 in an access log or behind curl can only mean
+	// "fuse blown". 429 already means "busy", a 503 also comes from the ingress
+	// when the pod is away, 403 is what a missing CSRF token gets, and 423 is
+	// WebDAV's, with a body format of its own. A plain int: Spring deprecated
+	// its enum constant for 418 in 7.0.
+	static final int LOGIN_CLOSED_STATUS = 418;
+
+	// A bare bcrypt hash as scripts/mint-auth-hash.sh emits it. Its SHAPE only:
+	// any two-digit cost passes, on purpose (ADR-0009). This guard exists for
+	// mangles that lock the owner out silently, and a cheap hash is not one —
+	// it works. The cost is decided where hashes are minted (the script: 12,
+	// which is what sits in a deployment's Secret in practice); a floor here
+	// would be that policy a second time, and would tax every test and dev
+	// run, whose fixtures are cheap on purpose (TestAuth), or need an escape
+	// hatch for them. Nor does the app ever "upgrade" a cheap hash by itself:
+	// see GuardedPasswordEncoder.upgradeEncoding().
 	private static final Pattern BCRYPT_HASH = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
 	@Bean
@@ -51,6 +76,28 @@ public class SecurityConfig {
 						+ "Mint one with scripts/mint-auth-hash.sh");
 		return new InMemoryUserDetailsManager(
 				User.withUsername(USERNAME).password("{bcrypt}" + passwordHash).roles("USER").build());
+	}
+
+	// ADR-0009. The delegate is the encoder Spring Security would have picked
+	// by itself (hence the "{bcrypt}" prefix above); declaring the bean only
+	// puts the guard in front of it. It is the single PasswordEncoder bean, so
+	// the auto-configured DaoAuthenticationProvider behind form login AND Basic
+	// uses it.
+	@Bean
+	PasswordEncoder passwordEncoder(CredentialCheckPermits permits, LoginFuse fuse) {
+		return new GuardedPasswordEncoder(PasswordEncoderFactories.createDelegatingPasswordEncoder(), permits, fuse);
+	}
+
+	@Bean
+	CredentialCheckPermits credentialCheckPermits(
+			@Value("${idli.auth.max-concurrent-checks:2}") int maxConcurrentChecks) {
+		return new CredentialCheckPermits(maxConcurrentChecks);
+	}
+
+	@Bean
+	LoginFuse loginFuse(@Value("${idli.auth.fuse.max-failed-checks:20}") int maxFailedChecks,
+			@Value("${idli.auth.fuse.window:1h}") Duration window) {
+		return new LoginFuse(maxFailedChecks, window, InstantSource.system());
 	}
 
 	@Bean
@@ -113,7 +160,8 @@ public class SecurityConfig {
 				// above. Clients that use Basic here (curl -u, TestRestTemplate) send the
 				// header preemptively and never needed the challenge.
 				.httpBasic(basic -> basic
-						.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+						.authenticationEntryPoint((request, response, failure) -> answerFailedAuthentication(
+								response, failure)))
 				// This API answers unauthenticated requests with a bare 401 and never
 				// replays a saved request; the default RequestCache would create a
 				// session for every anonymous hit on a protected endpoint.
@@ -123,8 +171,8 @@ public class SecurityConfig {
 						.loginProcessingUrl("/api/auth/login")
 						.successHandler((request, response, authentication) -> response
 								.setStatus(HttpStatus.NO_CONTENT.value()))
-						.failureHandler((request, response, exception) -> response
-								.setStatus(HttpStatus.UNAUTHORIZED.value())))
+						.failureHandler((request, response, failure) -> answerFailedAuthentication(response,
+								failure)))
 				.logout(logout -> logout
 						.logoutUrl("/api/auth/logout")
 						.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)))
@@ -132,6 +180,21 @@ public class SecurityConfig {
 				.exceptionHandling(exceptions -> exceptions
 						.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
 		return http.build();
+	}
+
+	// Shared by the form login and HTTP Basic, the two ways a password gets
+	// here. The SPA tells the three answers apart (stores/auth.ts): folded into
+	// one 401, "busy" and "closed" would read as "wrong password" — and the
+	// owner would go hunting for a typo that is not there.
+	private static void answerFailedAuthentication(HttpServletResponse response, AuthenticationException failure) {
+		if (failure instanceof CredentialCheckBusyException) {
+			response.setHeader(HttpHeaders.RETRY_AFTER, "1");
+			response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+		} else if (failure instanceof PasswordLoginClosedException) {
+			response.setStatus(LOGIN_CLOSED_STATUS);
+		} else {
+			response.setStatus(HttpStatus.UNAUTHORIZED.value());
+		}
 	}
 
 }

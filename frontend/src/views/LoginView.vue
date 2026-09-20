@@ -17,6 +17,14 @@ async function submit() {
   if (result === 'wrong-password') {
     error.value = 'wrong password'
     password.value = ''
+  } else if (result === 'busy') {
+    // Nothing wrong with the password: it stays in the field for the retry.
+    error.value = 'backend busy — try again in a moment'
+  } else if (result === 'closed') {
+    // The one user is also the operator (ADR-0005), so say what to do. The
+    // password stays: after the restart the same form just works.
+    error.value =
+      'password login is closed after too many failed attempts — restart the backend to reopen it'
   } else if (result === 'unreachable') {
     error.value = 'backend unreachable'
   } else if (result === 'no-session') {

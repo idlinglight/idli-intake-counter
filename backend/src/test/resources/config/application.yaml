@@ -1,0 +1,15 @@
+# Test-only overrides. Spring Boot reads classpath:/config/ AFTER classpath:/,
+# so this file is merged over src/main/resources/application.yaml — it does
+# not replace it (a src/test/resources/application.yaml would). It is on the
+# classpath of `./mvnw spring-boot:test-run` too; environment variables still
+# win there (IDLI_AUTH_FUSE_MAX_FAILED_CHECKS=3 to watch the fuse blow locally).
+
+idli:
+  auth:
+    fuse:
+      # Most test classes share one cached application context and thereby one
+      # login fuse, which never recovers once blown (ADR-0009). Their deliberate
+      # wrong-password requests must not add up to a closed login in whichever
+      # test class happens to run twentieth. The fuse has its own test with its
+      # own context and limit: LoginFuseFlowTest.
+      max-failed-checks: 1000000
