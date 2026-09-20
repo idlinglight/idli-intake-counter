@@ -122,6 +122,32 @@ describe('auth store', () => {
     expect(getMock).not.toHaveBeenCalled()
   })
 
+  it('login() signals busy on 429, not a wrong password', async () => {
+    // Every slot for a password check was taken: the backend refused before
+    // looking at the password, so this says nothing about it.
+    fetchMock.mockResolvedValue(
+      new Response(null, { status: 429, headers: { 'Retry-After': '1' } }),
+    )
+    const store = useAuthStore()
+
+    const result = await store.login('hunter2')
+
+    expect(result).toBe('busy')
+    expect(store.authenticated).toBe(false)
+    expect(getMock).not.toHaveBeenCalled()
+  })
+
+  it('login() signals closed on 418, the blown login fuse', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 418 }))
+    const store = useAuthStore()
+
+    const result = await store.login('hunter2')
+
+    expect(result).toBe('closed')
+    expect(store.authenticated).toBe(false)
+    expect(getMock).not.toHaveBeenCalled()
+  })
+
   it('login() signals unreachable when the request fails', async () => {
     fetchMock.mockRejectedValue(new Error('network down'))
     const store = useAuthStore()

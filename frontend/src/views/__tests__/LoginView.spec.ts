@@ -50,6 +50,33 @@ describe('LoginView', () => {
     expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe('')
   })
 
+  it('asks for a retry when the backend is busy and keeps the password', async () => {
+    loginMock.mockResolvedValue('busy')
+    const wrapper = mount(LoginView)
+
+    await submitPassword(wrapper, 'hunter2')
+
+    expect(wrapper.get('.error').text()).toContain('try again')
+    // Nothing was wrong with it — the retry should be one tap.
+    expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe(
+      'hunter2',
+    )
+  })
+
+  it('says what to do when password login is closed and keeps the password', async () => {
+    loginMock.mockResolvedValue('closed')
+    const wrapper = mount(LoginView)
+
+    await submitPassword(wrapper, 'hunter2')
+
+    // The reader is the operator: name the release, not just the state.
+    expect(wrapper.get('.error').text()).toContain('closed')
+    expect(wrapper.get('.error').text()).toContain('restart the backend')
+    expect((wrapper.get('input[type="password"]').element as HTMLInputElement).value).toBe(
+      'hunter2',
+    )
+  })
+
   it('distinguishes an unreachable backend from a wrong password', async () => {
     loginMock.mockResolvedValue('unreachable')
     const wrapper = mount(LoginView)

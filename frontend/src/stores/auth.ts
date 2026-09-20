@@ -3,7 +3,12 @@ import { defineStore } from 'pinia'
 import { api, onUnauthorized } from '@/api/client'
 import { readCookie, XSRF_COOKIE, XSRF_HEADER } from '@/api/csrf'
 
-export type LoginResult = 'ok' | 'wrong-password' | 'unreachable' | 'no-session'
+export type LoginResult = 'ok' | 'wrong-password' | 'busy' | 'closed' | 'unreachable' | 'no-session'
+
+// The backend's login fuse is blown (ADR-0009): password verification is off
+// until the backend restarts. 418 because nothing else between the backend
+// and this code ever produces one — SecurityConfig.java has the reasoning.
+const LOGIN_CLOSED_STATUS = 418
 
 /**
  * Login/logout are filter-based endpoints outside the OpenAPI contract —
@@ -64,6 +69,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if (response.status === 401) {
       return 'wrong-password'
+    }
+    // Neither of the next two says anything about the password — the backend
+    // refused before looking at it (ADR-0009). 429: every slot for a password
+    // check is taken right now, a retry moments later will do.
+    if (response.status === 429) {
+      return 'busy'
+    }
+    if (response.status === LOGIN_CLOSED_STATUS) {
+      return 'closed'
     }
     if (!response.ok) {
       return 'unreachable'
