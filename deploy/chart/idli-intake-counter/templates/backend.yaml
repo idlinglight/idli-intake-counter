@@ -43,17 +43,24 @@ spec:
             - name: http
               containerPort: 8080
           {{- /* Generous window for datasource init + Flyway before the
-               default-timing liveness/readiness probes take over. */}}
+               liveness/readiness probes take over. */}}
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
             periodSeconds: 2
             failureThreshold: 30
+          {{- /* A failed liveness probe restarts the pod, and a restart drops
+               every in-memory session — the most expensive thing a probe can
+               do to this app. So it tolerates a busy moment (3 s instead of
+               the 1 s default, times the default 3 failures) before concluding
+               the process is wedged. Readiness keeps the default: taking a
+               slow pod out of rotation costs nothing and heals by itself. */}}
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

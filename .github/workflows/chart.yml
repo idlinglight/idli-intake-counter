@@ -16,9 +16,9 @@ on:
       - '.github/workflows/chart.yml'
   workflow_dispatch:
 
+# Least privilege by default; only the job that pushes the chart widens it.
 permissions:
   contents: read
-  packages: write
 
 env:
   CHART_DIR: deploy/chart/idli-intake-counter
@@ -30,7 +30,11 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      # persist-credentials: false — nothing after the checkout talks to git;
+      # don't leave the token in .git/config.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       - run: helm lint "$CHART_DIR" --set-json "$DS_VALUES"
       - run: helm template smoke "$CHART_DIR" --set-json "$DS_VALUES" > /dev/null
@@ -39,8 +43,14 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: lint
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow-level set, hence both lines.
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
       - run: |
