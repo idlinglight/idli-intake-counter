@@ -18,7 +18,8 @@ spec:
         app.kubernetes.io/component: frontend
     spec:
       containers:
-        - name: frontend
+        {{- /* Named after the chart — see backend.yaml. */}}
+        - name: {{ .Chart.Name }}-frontend
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
           ports:
             - name: http

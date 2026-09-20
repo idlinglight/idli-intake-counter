@@ -85,8 +85,15 @@ backend restarts — for the right password too, through the form and through
 
 Find out what it was first: the backend log has exactly one WARN line for it
 (`Login fuse blown: …`) with the time; an ingress access log, where there is
-one, has the requests — every refused one since then is a 418 there. Then
-release it:
+one, has the requests — every refused one since then is a 418 there.
+
+```sh
+kubectl -n <namespace> logs -l app.kubernetes.io/name=idli-intake-counter,app.kubernetes.io/component=backend --tail=-1 | grep 'Login fuse blown'
+```
+
+(In a log aggregator that labels by container: the containers are called
+`idli-intake-counter-backend` and `idli-intake-counter-frontend` since chart
+0.5.1 — `backend` and `frontend` before.) Then release it:
 
 ```sh
 kubectl -n <namespace> delete pod -l app.kubernetes.io/name=idli-intake-counter,app.kubernetes.io/component=backend

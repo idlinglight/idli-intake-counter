@@ -33,7 +33,13 @@ spec:
         app.kubernetes.io/component: backend
     spec:
       containers:
-        - name: backend
+        {{- /* Named after the chart, not just "backend": log and metrics
+             pipelines label by container name, and a bare "backend" is only
+             unique in a cluster by luck. This way the container carries the
+             same name as its image — and as the Deployment, when the release
+             is named after the chart. Fixed across releases, and well inside
+             the 63 characters a container name may have. */}}
+        - name: {{ .Chart.Name }}-backend
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
           {{- with .Values.backend.env }}
           env:
