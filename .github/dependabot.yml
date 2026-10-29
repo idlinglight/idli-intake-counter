@@ -103,8 +103,7 @@ updates:
         update-types:
           - version-update:semver-major
 
-  # cooldown is unsupported for github-actions (docs, 2026-07-26) —
-  # weekly cadence + review-before-merge is the age guard here.
+  # cooldown supports default-days only for github-actions (docs, 2026-10-29)
   # Actions are SHA-pinned with version comments; Dependabot bumps both.
   # NOT Dependabot's territory: node-version/java-version `with:` inputs
   # in the workflows — those stay manual.
@@ -115,3 +114,5 @@ updates:
       day: friday
       time: "19:00"
       timezone: Europe/Vienna
+    cooldown:
+      default-days: 3
