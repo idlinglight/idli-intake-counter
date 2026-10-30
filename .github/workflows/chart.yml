@@ -4,6 +4,7 @@ name: chart
 # on main to oci://ghcr.io/<owner>/charts as idli-intake-counter:<Chart.yaml version>.
 # The chart version is bumped manually (ADR-0003); re-publishing an unchanged
 # version overwrites the artifact, so meaningful changes need a version bump.
+# Runner image pinned on purpose: .github/MAINTENANCE.md, "Runner images".
 on:
   push:
     branches: [main]
@@ -28,7 +29,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # persist-credentials: false — nothing after the checkout talks to git;
       # don't leave the token in .git/config.
@@ -51,7 +52,7 @@ jobs:
   publish:
     if: github.event_name != 'pull_request'
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Job-level permissions replace the workflow-level set, hence both lines.
     permissions:
       contents: read

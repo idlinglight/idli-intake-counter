@@ -43,3 +43,29 @@ Repo-settings toggles, verified 2026-09-06:
   lagging package clears cooldown, comment `@dependabot recreate` — that
   time it closed the PR and opened a complete one (PR #66). Exempting the
   plugin from cooldown doesn't help: it could then run ahead of oxlint.
+
+## Runner images
+
+Every job pins `runs-on: ubuntu-24.04` instead of `ubuntu-latest`, so moving
+to a new runner image happens when we choose, not when GitHub migrates the
+label (`ubuntu-latest` moves to 26.04 between 2026-10-19 and 2026-11-19,
+https://github.com/actions/runner-images/issues/14748). Dependabot doesn't
+bump these labels; GitHub announces image retirements in that repository.
+
+Moving to a new image, e.g. `ubuntu-26.04`:
+
+1. On a branch, change every `runs-on:` in `.github/workflows/`.
+2. Push it as `build-image/<name>` and dispatch `backend.yml` and
+   `frontend.yml` there (`gh workflow run backend.yml --ref
+   build-image/<name>`): that runs verify AND build-and-push. The PR alone
+   runs only the verify jobs and the chart lint.
+3. Don't dispatch `chart.yml` from a branch: its publish job runs on every
+   non-PR event and would push the chart from that branch. Chart publish
+   first runs on the new image after merge.
+4. Each job's log names the image that actually ran under
+   "Set up job → Runner Image".
+
+Merging touches all three workflows, so it rebuilds both images (same
+source, new `sha-` tags) and republishes the unchanged chart version (new
+digest under the same tag). Consumers pinning the chart by digest see no
+change.

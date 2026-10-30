@@ -2,10 +2,11 @@ name: frontend
 
 # Verifies the frontend on every relevant change; pushes the multi-arch image
 # (ghcr.io/<owner>/idli-intake-counter-frontend, tagged sha-<short7>) on:
-#   - push to main
-#   - push to build-image/** — opt-in image of ANY state:
-#     `git push origin HEAD:build-image/<name>`
-#   - workflow_dispatch
+#   - push to main or build-image/** (both path-filtered, see below)
+#   - workflow_dispatch — no paths filter, so this is the opt-in image of
+#     ANY state: `git push origin HEAD:build-image/<name>`, then
+#     `gh workflow run frontend.yml --ref build-image/<name>`
+# Runner image pinned on purpose: .github/MAINTENANCE.md, "Runner images".
 on:
   push:
     branches:
@@ -28,7 +29,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -56,7 +57,7 @@ jobs:
   build-and-push:
     if: github.event_name != 'pull_request'
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Job-level permissions replace the workflow-level set, hence both lines.
     permissions:
       contents: read
