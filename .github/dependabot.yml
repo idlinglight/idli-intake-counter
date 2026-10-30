@@ -2,29 +2,10 @@
 # switch; no settings toggle involved. Cadence and guards are a per-repo
 # choice. cooldown mirrors the local npm guard (min-release-age=3 in ~/.npmrc).
 #
-# Deliberately NOT covered here — repo-settings toggles, verified 2026-09-06:
-# * Dependabot ALERTS: on. They are the signal for transitive CVEs, which
-#   nothing in this file ever fixes (Dependabot can't refresh in-range
-#   transitives for npm — a version-bump PR never drags a fix along).
-#   An alert = likely manual `npm update <transitive>` (see PR #19, #30).
-# * Dependabot SECURITY-UPDATE PRs: off, on purpose. They ignore cooldown
-#   and bump straight to latest, i.e. they systematically break the 3-day
-#   guard even when no bump to latest is needed. Keep them off.
-# * Docker base images never get alerts at all (not in the dependency
-#   graph) — for a critical nginx/temurin advisory, bump manually.
-#
-# ── Review traps for bump PRs in THIS repo ──────────────────────────────
-# * docker bumps + action bumps inside build-and-push: PR CI runs the
-#   verify jobs only — images are built AFTER merge to main, so a broken
-#   base-image or buildx bump merges green. Pre-merge proof: push the PR
-#   head to build-image/<name>, then `gh workflow run backend.yml --ref
-#   build-image/<name>` (+ frontend.yml). Always dispatch: it is the one
-#   trigger in those workflows without a `paths:` filter.
-# * springdoc majors track Spring Boot majors — a springdoc major PR only
-#   makes sense together with the matching Boot line.
-# * Boot minors/majors can relocate classes/packages (seen live: 4.1 moved
-#   TestRestTemplate). `./mvnw verify` in PR CI catches it at compile time;
-#   expect occasional import-fix commits on top of Boot bump PRs.
+# Comments here only explain the config lines next to them. Repo-settings
+# toggles, review traps for bump PRs and other learnings live in
+# .github/MAINTENANCE.md: any edit to this file on main makes Dependabot
+# re-check every ecosystem, so this file changes only when the config does.
 version: 2
 updates:
   - package-ecosystem: npm
