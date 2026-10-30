@@ -29,7 +29,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       # persist-credentials: false — nothing after the checkout talks to git;
       # don't leave the token in .git/config.
@@ -52,7 +52,7 @@ jobs:
   publish:
     if: github.event_name != 'pull_request'
     needs: lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Job-level permissions replace the workflow-level set, hence both lines.
     permissions:
       contents: read

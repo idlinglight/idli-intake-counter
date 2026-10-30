@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       # persist-credentials: false — this job runs third-party build tooling
       # (maven plugins, the test suite); don't leave the token in .git/config.
@@ -52,7 +52,7 @@ jobs:
   build-and-push:
     if: github.event_name != 'pull_request'
     needs: verify
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Job-level permissions replace the workflow-level set, hence both lines.
     permissions:
       contents: read
