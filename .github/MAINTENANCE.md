@@ -46,19 +46,26 @@ Repo-settings toggles, verified 2026-09-06:
 
 ## Runner images
 
-Every job pins `runs-on: ubuntu-24.04` instead of `ubuntu-latest`, so moving
+Every job pins `runs-on: ubuntu-26.04` instead of `ubuntu-latest`, so moving
 to a new runner image happens when we choose, not when GitHub migrates the
-label (`ubuntu-latest` moves to 26.04 between 2026-10-19 and 2026-11-19,
-https://github.com/actions/runner-images/issues/14748). Dependabot doesn't
-bump these labels; GitHub announces image retirements in that repository.
+label. The move from 24.04 happened 2026-10-30, ahead of the `ubuntu-latest`
+migration (rollout 2026-10-19 → 2026-11-19,
+https://github.com/actions/runner-images/issues/14748), after a green
+`build-image/` run on 26.04: both verify jobs and both image builds.
+Dependabot doesn't bump these labels; GitHub announces image retirements in
+that repository.
 
-Moving to a new image, e.g. `ubuntu-26.04`:
+Moving to a new image:
 
-1. On a branch, change every `runs-on:` in `.github/workflows/`.
-2. Push it as `build-image/<name>` and dispatch `backend.yml` and
-   `frontend.yml` there (`gh workflow run backend.yml --ref
-   build-image/<name>`): that runs verify AND build-and-push. The PR alone
-   runs only the verify jobs and the chart lint.
+1. On a branch, change every `runs-on:` in `.github/workflows/`. A local
+   actionlint may not know a brand-new label yet (1.7.12 didn't know
+   `ubuntu-26.04`); `actionlint -ignore 'label "<label>" is unknown'`.
+2. Push it as `build-image/<name>`, then check which runs started. On
+   2026-10-30 that push alone ran `backend.yml` and `frontend.yml` in full,
+   verify AND build-and-push (the commit touched both files, which their
+   `paths:` filters include). Dispatch (`gh workflow run backend.yml --ref
+   build-image/<name>`) only what didn't start, or the images build twice.
+   The PR alone runs only the verify jobs and the chart lint.
 3. Don't dispatch `chart.yml` from a branch: its publish job runs on every
    non-PR event and would push the chart from that branch. Chart publish
    first runs on the new image after merge.
