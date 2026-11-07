@@ -15,6 +15,21 @@ Repo-settings toggles, verified 2026-09-06:
   version updates never fix (Dependabot can't refresh in-range transitives
   for npm — a version-bump PR never drags a fix along). An alert = likely
   manual `npm update <transitive>` (see PR #19, #30).
+  - Alerts show up when a merge changes a lockfile (GitHub re-scans the
+    dependency graph), not when the advisory is published (seen 2026-10-02,
+    10-10, 11-07).
+  - If no fixed version fits every parent's range, `npm update` can't help
+    (2026-11-07: the minimatch fix exists only in 11.x, while all parents
+    pin 10.x), and an `overrides` entry would force an untested major on
+    them. That alone doesn't make the alert tolerable: first assess how the
+    vulnerable code is reached here, and with whose input. If the risk is
+    acceptable, dismiss as "tolerable risk" with the re-check trigger in the
+    comment (GitHub limits its length); Dependabot alerts 4 and 27 went that
+    way. If not, the remaining options are an override tested on its own,
+    replacing the parent, or dropping the dependency.
+  - GitHub auto-dismisses some dev-scope alerts, HIGH ones included, and the
+    web UI hides them; `gh api repos/<owner>/<repo>/dependabot/alerts` lists
+    them.
 - **Dependabot security-update PRs: off, on purpose.** They ignore cooldown
   and bump straight to latest, i.e. they systematically break the 3-day
   guard even when no bump to latest is needed. Keep them off.
