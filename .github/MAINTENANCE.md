@@ -39,10 +39,20 @@ Repo-settings toggles, verified 2026-09-06:
   apart. Seen 2026-10-30: `eslint-plugin-oxlint` peer-pins `oxlint` to its
   own minor and publishes 0–18 h after it; the weekly run found oxlint
   1.90.0 past the 3 days and the plugin 37 min short, so the group PR bumped
-  oxlint alone and `npm ci` failed with ERESOLVE (PR #65). Fix: once the
-  lagging package clears cooldown, comment `@dependabot recreate` — that
-  time it closed the PR and opened a complete one (PR #66). Exempting the
-  plugin from cooldown doesn't help: it could then run ahead of oxlint.
+  oxlint alone and `npm ci` failed with ERESOLVE (PR #65). Dependabot opens
+  such a PR anyway: it writes the lockfile with `npm install --force` (seen
+  in its job log, 2026-11-07). Exempting the plugin from cooldown doesn't
+  help: it could then run ahead of oxlint.
+  Fix: first check that the matching plugin version exists (`npm view
+  eslint-plugin-oxlint versions`); the plugin sometimes skips one.
+  - It exists but is younger than 3 days: once it clears cooldown, comment
+    `@dependabot recreate`. On PR #65 that closed the PR and opened a
+    complete one (PR #66).
+  - It doesn't exist (2026-11-06: the plugin went 1.90.0 → 1.92.0, PR #68):
+    recreate can't help. Push `npm install -D oxlint@~<main's minor>` onto
+    the Dependabot branch, merge the rest, and let a later weekly run bump
+    the pair. After such a push, don't comment `@dependabot rebase` or
+    `recreate` on that PR: it would drop the commit.
 
 ## Runner images
 
