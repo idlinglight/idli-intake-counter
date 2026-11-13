@@ -69,6 +69,29 @@ Repo-settings toggles, verified 2026-09-06:
     the pair. After such a push, don't comment `@dependabot rebase` or
     `recreate` on that PR: it would drop the commit.
 
+## Merging several bump PRs in one round
+
+Each merge to main builds only what its paths touch, so the order of the
+merges decides which image tags the round ends with.
+
+- **A PR that touches both `backend.yml` and `frontend.yml` goes last.** Its
+  merge builds both images from the final tree, so both deploy candidates
+  carry the same `sha-` tag. Done 2026-11-13: a `docker/login-action` bump
+  (PR #71) went in after the four other PRs of that round. In a round
+  without such a PR, the candidates are the last merge that built the
+  backend image and the last one that built the frontend image.
+- **Two npm PRs in one round** (the minor/patch group plus a major, which
+  arrives on its own): Dependabot wrote both lockfiles against the same
+  main. After merging the first, comment `@dependabot rebase` on the second.
+  Dependabot then writes that lockfile again on the new main, and PR CI runs
+  on the combination that will land. Seen 2026-11-13 (PR #74, then PR #75):
+  GitHub showed PR #75 as mergeable without the rebase; the rebased branch
+  was there about 2.5 minutes after the comment, with the same package
+  changes as before.
+  - The rebase writes a new lockfile and changes the head SHA. Compare its
+    package changes with the ones already reviewed before merging.
+  - Not on a PR that carries a pushed commit: see the lockstep trap above.
+
 ## Runner images
 
 Every job pins `runs-on: ubuntu-26.04` instead of `ubuntu-latest`, so moving
