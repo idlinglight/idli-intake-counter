@@ -36,3 +36,35 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s:%s" .repository .tag -}}
 {{- end -}}
 {{- end -}}
+
+{{- /* Pod-level hardening, the same for both components (chart 0.6.0).
+     - No service-account token: neither process talks to the cluster API, so
+       the credential Kubernetes would mount by default is only something to
+       steal.
+     - runAsNonRoot: the kubelet refuses to start a container whose image runs
+       as root — or names its user instead of numbering it, which it cannot
+       verify. Both images declare a numeric USER; the chart deliberately sets
+       no runAsUser, so the uid stays the image's business.
+     - seccomp RuntimeDefault: the container runtime's syscall filter, which a
+       pod does not get unless it asks (or the kubelet is configured to default
+       it). */ -}}
+{{- define "idli.podHardening" -}}
+automountServiceAccountToken: false
+securityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+{{- end -}}
+
+{{- /* Container-level hardening, the same for both components (chart 0.6.0).
+     Together with idli.podHardening this is what the Kubernetes "restricted"
+     Pod Security Standard asks for, plus the read-only root filesystem, which
+     it does not. Each container gets an emptyDir on /tmp for the little it
+     does write. */ -}}
+{{- define "idli.containerHardening" -}}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+capabilities:
+  drop:
+    - ALL
+{{- end -}}

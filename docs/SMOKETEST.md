@@ -12,6 +12,19 @@ kubectl -n <namespace> rollout status deploy -l app.kubernetes.io/name=idli-inta
 Pods reaching Ready already implies the backend's actuator liveness/readiness
 probes pass (wired in the chart; deliberately *not* exposed through the ingress).
 
+**A rollout that does not finish (chart ≥ 0.6.0):** the chart and the images
+have to fit each other ([ADR-0010](adr/0010-restricted-containers-pinned-bases.md)),
+and the old pods keep serving while new ones wait, so a mismatch is quiet.
+`kubectl -n <namespace> get pods` and `describe pod` tell which one it is:
+
+- `CreateContainerConfigError`, "image has non-numeric user" or "image will
+  run as root" — an image from before chart 0.6.0 under chart 0.6.0.
+- Frontend `Running` but `0/1`, "Readiness probe failed … connection refused"
+  that does not stop — the chart and the frontend image disagree about the
+  port (80 before 0.6.0, 8080 since).
+- A crash loop with "Read-only file system" in the log — something writes
+  outside `/tmp`, the only writable path.
+
 ## 2. Backend, through the ingress
 
 ```sh
@@ -128,6 +141,14 @@ for a password check was taken at that moment. Retry.
 - **The SPA fallback makes any unknown path return 200** with `index.html`
   (nginx `try_files`). Arbitrary-path probes therefore prove nothing; only
   `/api/*` paths give honest 404s from the backend.
+- **`/healthz` is the one frontend path nginx answers itself** (`ok`, frontend
+  images for chart ≥ 0.6.0). It is the readiness probe's target and the only
+  request that leaves no line in the frontend's access log — so that log now
+  shows real traffic only.
+- **The frontend logs one `can not modify /etc/nginx/conf.d/default.conf
+  (read-only file system?)` line at every start** (chart ≥ 0.6.0). That is
+  the base image's start script noticing the read-only root filesystem, not
+  an error.
 - `/v3/api-docs` (OpenAPI spec) is served by the backend but not routed through
   the ingress — reach it via `kubectl port-forward` if needed.
 - **Database era (chart ≥ 0.4.0, images with water logging):** the backend

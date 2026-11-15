@@ -19,3 +19,8 @@ After a backend API change, refresh the contract *and* the types in one go with
 The production image serves the built bundle from nginx (`Dockerfile`,
 `nginx.conf`); `VITE_GIT_SHA` is baked in at build time so the header can show
 which frontend build is being served.
+
+What the image expects from whatever runs it: it listens on port **8080**, as
+the non-root user uid 101; `GET /healthz` answers `ok` and is the probe target
+(not logged); and it runs with a read-only root filesystem as long as `/tmp`
+is writable. Try it: `docker run --rm --read-only --tmpfs /tmp -p 8080:8080 <image>`.

@@ -33,8 +33,12 @@ Repo-settings toggles, verified 2026-09-06:
 - **Dependabot security-update PRs: off, on purpose.** They ignore cooldown
   and bump straight to latest, i.e. they systematically break the 3-day
   guard even when no bump to latest is needed. Keep them off.
-- **Docker base images never get alerts** (not in the dependency graph) —
-  for a critical nginx/temurin advisory, bump manually.
+- **Docker base images never get alerts** (not in the dependency graph).
+  The two runtime bases are pinned by version and digest since 2026-11-15
+  (ADR-0010), so their updates come as version-update PRs instead: after the
+  3-day cooldown, on the Friday run. For a critical nginx/temurin advisory
+  don't wait for that — bump by hand: new tag, and the index digest from
+  `docker buildx imagetools inspect <image>:<tag>` (top-level "Digest:").
 
 ## Review traps for bump PRs
 
@@ -44,6 +48,16 @@ Repo-settings toggles, verified 2026-09-06:
   to `build-image/<name>`, then `gh workflow run backend.yml --ref
   build-image/<name>` (+ `frontend.yml`). Always dispatch: it is the one
   trigger in those workflows without a `paths:` filter.
+- **A runtime base-image bump is the one bump whose image is worth
+  deploying for its own sake.** npm dev-dependency rounds mostly change what
+  CI runs, not what is served; a new nginx or JRE changes what runs in the
+  cluster. The merge builds exactly one image (backend or frontend) that
+  differs from its predecessor only in the base.
+- **How Dependabot reads the Temurin tag is not yet seen.** `21.0.13_9-jre`
+  is a compound tag (version, build number, flavour), and compound tags have
+  surprised here before (the maven image, PR #1). Check the first PR for the
+  pinned base: it should move the patch version and/or the digest and keep
+  the `-jre` suffix. Anything else: close it and bump by hand.
 - **springdoc majors track Spring Boot majors** — a springdoc major PR only
   makes sense together with the matching Boot line.
 - **Boot minors/majors can relocate classes/packages** (seen live: 4.1 moved
