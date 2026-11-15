@@ -106,6 +106,21 @@ merges decides which image tags the round ends with.
     package changes with the ones already reviewed before merging.
   - Not on a PR that carries a pushed commit: see the lockstep trap above.
 
+## Tool versions in workflow inputs
+
+Dependabot bumps the actions (`uses:` lines), not the tool versions passed
+to them as inputs: `node-version`, `java-version`, and the Helm `version` in
+`chart.yml`. Those move by hand.
+
+Helm is pinned (`v4.3.1` since 2026-11-15) because `azure/setup-helm`
+otherwise installs the newest release at the minute the job runs — the chart
+would be linted, packaged and published by a tool version nobody chose,
+possibly hours old (v4.3.2 was two days old that day, inside the 3-day guard
+the dependency bumps keep). To move it: pick a release at least three days
+old (https://github.com/helm/helm/releases), change both `version:` lines in
+`chart.yml`, and expect the merge to republish the current chart version
+under a new digest — the same effect as any other `chart.yml` edit.
+
 ## Runner images
 
 Every job pins `runs-on: ubuntu-26.04` instead of `ubuntu-latest`, so moving
