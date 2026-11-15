@@ -64,6 +64,27 @@ Repo-settings toggles, verified 2026-09-06:
   don't read "the PR exists" as "it is three days old" — the registry shows
   when the tag was pushed. A PR that changes the tag's shape or drops the
   `-jre` suffix: close it and bump by hand.
+- **A Maven wrapper bump is two lines, and Dependabot's version of it is
+  not mergeable as is.** `backend/.mvn/wrapper/maven-wrapper.properties`
+  carries `distributionSha256Sum` next to `distributionUrl` (since
+  2026-11-15): `./mvnw` refuses a Maven download that does not match — in
+  CI's verify job and on a developer machine, the two places it runs (the
+  image build uses the maven image instead). To bump by hand:
+  - Maven Central publishes a `.sha512` for the zip, no `.sha256`. Download
+    the zip, compare `shasum -a 512` with the published `.sha512` (the same
+    file is on `downloads.apache.org/maven/`, a second host to compare
+    with), then put `shasum -a 256` into the properties file.
+  - `MAVEN_USER_HOME=$(mktemp -d) ./mvnw -v` proves it: a fresh download,
+    validated. A wrong hash ends in "Failed to validate Maven distribution
+    SHA-256".
+  - Dependabot's own bump (PR #78, 2026-11-15, before the hash line
+    existed) changed the URL and rewrote `mvnw.cmd` with CRLF line endings
+    in the committed file — which `.gitattributes` (`*.cmd text eol=crlf`)
+    then shows as modified forever, as after PR #51 (repaired in PR #54).
+    Not yet seen: what it does with the hash line. If it keeps the old
+    hash, verify fails loudly; if it drops the line, the PR is green and
+    the check is gone — read the diff. Either way, redo the bump by hand
+    and let Dependabot close its PR.
 - **springdoc majors track Spring Boot majors** — a springdoc major PR only
   makes sense together with the matching Boot line.
 - **Boot minors/majors can relocate classes/packages** (seen live: 4.1 moved
