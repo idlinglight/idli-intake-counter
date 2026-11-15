@@ -32,6 +32,7 @@ spec:
         {{- include "idli.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: backend
     spec:
+      {{- include "idli.podHardening" . | nindent 6 }}
       containers:
         {{- /* Named after the chart, not just "backend": log and metrics
              pipelines label by container name, and a bare "backend" is only
@@ -41,6 +42,8 @@ spec:
              the 63 characters a container name may have. */}}
         - name: {{ .Chart.Name }}-backend
           image: {{ include "idli.image" .Values.backend.image | quote }}
+          securityContext:
+            {{- include "idli.containerHardening" . | nindent 12 }}
           {{- with .Values.backend.env }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -82,6 +85,16 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            {{- /* Tomcat's work directory and the JVM's own temp files; the
+                 rest of the filesystem is read-only. Sessions are not here —
+                 they live in memory. */}}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
 ---
 apiVersion: v1
 kind: Service

@@ -17,19 +17,39 @@ spec:
         {{- include "idli.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: frontend
     spec:
+      {{- include "idli.podHardening" . | nindent 6 }}
       containers:
         {{- /* Named after the chart — see backend.yaml. */}}
         - name: {{ .Chart.Name }}-frontend
           image: {{ include "idli.image" .Values.frontend.image | quote }}
+          securityContext:
+            {{- include "idli.containerHardening" . | nindent 12 }}
           ports:
+            {{- /* The port the image's nginx listens on (frontend/nginx.conf):
+                 8080 since chart 0.6.0, because the image runs as a non-root
+                 user. Probe and Service find it by name; the Service itself
+                 stays on 80. Chart and image have to agree on it — see
+                 values.yaml. */}}
             - name: http
-              containerPort: 80
+              containerPort: 8080
+          {{- /* /healthz serves the SPA shell like "/" does (503 if it
+               cannot), but is kept out of nginx's access log
+               (frontend/nginx.conf), so probing writes no log lines. */}}
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            {{- /* nginx keeps its pid file and temp files here; the rest of
+                 the filesystem is read-only. */}}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
 ---
 apiVersion: v1
 kind: Service

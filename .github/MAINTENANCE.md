@@ -33,8 +33,12 @@ Repo-settings toggles, verified 2026-09-06:
 - **Dependabot security-update PRs: off, on purpose.** They ignore cooldown
   and bump straight to latest, i.e. they systematically break the 3-day
   guard even when no bump to latest is needed. Keep them off.
-- **Docker base images never get alerts** (not in the dependency graph) —
-  for a critical nginx/temurin advisory, bump manually.
+- **Docker base images never get alerts** (not in the dependency graph).
+  The two runtime bases are pinned by digest since 2026-11-15 (ADR-0010),
+  so their updates come as version-update PRs instead, on the Friday run.
+  For a critical nginx/temurin advisory don't wait for that — bump by hand:
+  the index digest from `docker buildx imagetools inspect <image>:<tag>`
+  (top-level "Digest:"), plus the new tag for nginx.
 
 ## Review traps for bump PRs
 
@@ -44,6 +48,22 @@ Repo-settings toggles, verified 2026-09-06:
   to `build-image/<name>`, then `gh workflow run backend.yml --ref
   build-image/<name>` (+ `frontend.yml`). Always dispatch: it is the one
   trigger in those workflows without a `paths:` filter.
+- **A runtime base-image bump is the one bump whose image is worth
+  deploying for its own sake.** npm dev-dependency rounds mostly change what
+  CI runs, not what is served; a new nginx or JRE changes what runs in the
+  cluster. The merge builds exactly one image, backend or frontend. Its base
+  is the intended difference, not necessarily the only one: the build-stage
+  images float, so the same build may pick up a newer maven/JDK or node.
+- **Pinned base images: what the PRs look like is not yet seen**
+  (2026-11-15, nothing arrived yet). Expected: nginx as a patch bump that
+  moves tag and digest together; the JRE (`21-jre@sha256:…`) as a
+  digest-only bump, whose title names two digests and no Java version —
+  `docker run --rm --entrypoint java eclipse-temurin@<digest> -version`
+  says which one it is. Also unverified: whether the 3-day cooldown applies
+  to a digest-only move at all (there is no release date to count from), so
+  don't read "the PR exists" as "it is three days old" — the registry shows
+  when the tag was pushed. A PR that changes the tag's shape or drops the
+  `-jre` suffix: close it and bump by hand.
 - **springdoc majors track Spring Boot majors** — a springdoc major PR only
   makes sense together with the matching Boot line.
 - **Boot minors/majors can relocate classes/packages** (seen live: 4.1 moved
@@ -91,6 +111,21 @@ merges decides which image tags the round ends with.
   - The rebase writes a new lockfile and changes the head SHA. Compare its
     package changes with the ones already reviewed before merging.
   - Not on a PR that carries a pushed commit: see the lockstep trap above.
+
+## Tool versions in workflow inputs
+
+Dependabot bumps the actions (`uses:` lines), not the tool versions passed
+to them as inputs: `node-version`, `java-version`, and the Helm `version` in
+`chart.yml`. Those move by hand.
+
+Helm is pinned (`v4.3.1` since 2026-11-15) because `azure/setup-helm`
+otherwise installs the newest release at the minute the job runs — the chart
+would be linted, packaged and published by a tool version nobody chose,
+possibly hours old (v4.3.2 was two days old that day, inside the 3-day guard
+the dependency bumps keep). To move it: pick a release at least three days
+old (https://github.com/helm/helm/releases), change `HELM_VERSION` in
+`chart.yml`, and expect the merge to republish the current chart version
+under a new digest — the same effect as any other `chart.yml` edit.
 
 ## Runner images
 

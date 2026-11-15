@@ -1,3 +1,20 @@
+# Chart 0.6.0 and the images it runs belong together — bump all three pins
+# (chart, backend image, frontend image) in one step:
+#   * both containers run with `runAsNonRoot`, a read-only root filesystem
+#     (plus an emptyDir on /tmp), no capabilities and no service-account
+#     token. That needs images that declare a numeric non-root USER; with an
+#     older backend image the pod stops at CreateContainerConfigError
+#     ("image has non-numeric user"), with an older frontend image at "image
+#     will run as root".
+#   * the frontend container port is 8080 and its readiness probe asks for
+#     /healthz, which the frontend image answers without an access-log line.
+# The first images that fit are the ones built from the commit that introduced
+# chart 0.6.0. The reverse does not work either: such a frontend image listens
+# on 8080 and never becomes Ready under chart 0.5.x, which asks on port 80
+# ("Readiness probe failed … connection refused"). In both cases the old pods
+# keep serving while the new ones wait, so a mismatch shows as a rollout that
+# does not finish, not as an outage.
+#
 backend:
   image:
     repository: ghcr.io/idlinglight/idli-intake-counter-backend

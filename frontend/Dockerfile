@@ -10,10 +10,24 @@ ARG VITE_GIT_SHA
 RUN npm run build
 
 # Runtime stage
-FROM nginx:alpine-slim
+#
+# Base: the nginx project's own unprivileged image (Docker Hub org `nginx`, a
+# verified publisher — not a Docker Official Image, those have no org prefix).
+# It runs as uid 101 instead of root, listens on 8080 instead of 80, and keeps
+# its pid and temp files under /tmp, so it also runs with a read-only root
+# filesystem as long as /tmp is writable. `-slim` leaves out optional modules
+# this image does not use.
+#
+# Pinned by version AND digest, so a base update is a visible change (a
+# Dependabot PR) instead of something that rides along unseen with the next
+# build. The digest is the one of the multi-arch image index, not of one
+# architecture's manifest — CI builds amd64 + arm64. To check or move it by
+# hand: `docker buildx imagetools inspect nginx/nginx-unprivileged:<tag>`,
+# top-level "Digest:" line. Channel policy: .github/dependabot.yml.
+FROM nginx/nginx-unprivileged:1.30.6-alpine-slim@sha256:931bec1e41a3a643f2672162405093fe04002dd20e41d04faf67d700b7556b49
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Nothing else validates nginx.conf before a pod tries to start with it:
 # fail the image build instead.
 RUN nginx -t
 COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080

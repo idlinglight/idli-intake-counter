@@ -51,10 +51,16 @@ updates:
           - minor
           - patch
 
-  # Tag moves are channel/major decisions made deliberately; digest bumps
-  # within pinned tags would be Dependabot's job, but tags here float by
-  # design (21-jre, 26-alpine, alpine-slim) — so this section mostly guards
-  # against major-noise and documents the channel choices.
+  # The two RUNTIME base images (eclipse-temurin, nginx/nginx-unprivileged)
+  # are pinned by digest in the Dockerfiles (nginx next to its full version
+  # tag, the JRE next to its channel tag), so a base update arrives here as
+  # a PR: a new patch release, or a rebuild of the same version for
+  # OS-package fixes (the digest moves, the tag may not). With a
+  # floating tag the same update rode along unseen with whatever build came
+  # next — and nothing said that a build was worth deploying for it. The
+  # BUILD-stage images (maven, node) float within their channel: they are not
+  # part of what runs. Which channel is a decision made by hand; the ignore
+  # rules below keep Dependabot from proposing a move.
   - package-ecosystem: docker
     directories:
       - /backend
@@ -83,6 +89,14 @@ updates:
       - dependency-name: node
         update-types:
           - version-update:semver-major
+      # nginx: 1.30 is the STABLE line (even minor) — security and serious
+      # bug fixes only, and the config here needs no newer features. A minor
+      # move (1.30 → 1.32 when stable rolls over, about once a year in
+      # spring) or a switch to mainline (odd minor) is a channel decision.
+      - dependency-name: nginx/nginx-unprivileged
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
 
   # cooldown supports default-days only for github-actions (docs, 2026-10-29)
   # Actions are SHA-pinned with version comments; Dependabot bumps both.
