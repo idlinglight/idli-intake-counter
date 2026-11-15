@@ -6,13 +6,18 @@
 # download to accept (distributionSha256Sum). The base is the plain JDK,
 # pinned by digest like the runtime base below, so Dependabot proposes its
 # updates too; tag and digest policy are the same as described there.
-FROM eclipse-temurin:21-jdk@sha256:0a3f329821dcadf54b2a3033a15e2e9f007069a9db43d7f51897e6b80e726b07 AS build
+#
+# --platform=$BUILDPLATFORM: the jar is the same for every architecture, so
+# this stage runs once, natively on the machine that builds, instead of once
+# per target platform (the arm64 pass under emulation). Only the runtime
+# stage below is per platform.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk@sha256:0a3f329821dcadf54b2a3033a15e2e9f007069a9db43d7f51897e6b80e726b07 AS build
 
 # The wrapper script verifies the checksum of the .zip distribution, and
 # without unzip it silently switches to the .tar.gz — whose checksum is a
-# different one, so the build would stop at "Failed to validate Maven
-# distribution SHA-256". The JDK image has curl, tar and sha256sum, but no
-# unzip.
+# different one. The JDK image has curl, tar and sha256sum, but no unzip.
+# It is the one unpinned input of this stage: whatever version the Ubuntu
+# archive serves on the day this layer is built.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip \
     && rm -rf /var/lib/apt/lists/*
@@ -20,10 +25,15 @@ RUN apt-get update \
 WORKDIR /workspace
 
 # Fetch and verify Maven in a layer of its own: it changes only when the
-# wrapper files do.
+# wrapper files do. The unzip check is there for its message: without unzip
+# the wrapper would stop at "Failed to validate Maven distribution SHA-256,
+# your Maven distribution might be compromised" — a false alarm with a
+# misleading name.
 COPY mvnw ./
 COPY .mvn .mvn
-RUN ./mvnw -B -v
+RUN command -v unzip >/dev/null \
+    || { echo "unzip is missing: ./mvnw would fetch the .tar.gz, which the pinned checksum does not match" >&2; exit 1; } \
+    && ./mvnw -B -v
 
 # Cache dependencies: resolve them from the pom before copying sources.
 COPY pom.xml .

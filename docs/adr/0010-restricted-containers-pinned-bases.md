@@ -48,8 +48,10 @@ other request: 8640 lines a day, per pod, saying nothing.
    same rule: a digest-pinned JDK (`21-jdk`), with Maven from the wrapper,
    whose download is checked against a committed hash — one Maven version
    for tests and image, instead of a maven image whose compound tag
-   Dependabot once read as a JDK switch. The frontend's build image (node)
-   keeps floating within its major: it is not part of what runs.
+   Dependabot once read as a JDK switch. (One input of that stage stays
+   unpinned: `unzip`, installed from the distribution's archive, which the
+   wrapper needs to unpack Maven.) The frontend's build image (node) keeps
+   floating within its major: it is not part of what runs.
 5. **No NetworkPolicy in the chart.** What must be allowed in (the ingress
    controller, the kubelet's probes) and out (the database) depends on the
    cluster's network plugin and ingress setup. A policy written without

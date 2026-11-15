@@ -56,8 +56,10 @@ Repo-settings toggles, verified 2026-09-06:
   is the intended difference, not necessarily the only one for the
   frontend: its build image (`node:26-alpine`) floats, so the same build may
   pick up a newer node. The backend's build JDK is pinned and its Maven
-  comes from the wrapper, so a backend base bump changes nothing else — and
-  a bump of `21-jdk` alone changes what compiles the jar, not what runs.
+  comes from the wrapper, so a backend base bump changes nothing else that
+  matters (the build stage's `unzip` comes unpinned from the Ubuntu
+  archive; it only unpacks Maven). A bump of `21-jdk` alone changes what
+  compiles the jar, not what runs.
 - **Pinned base images: what the PRs look like is not yet seen**
   (2026-11-15, nothing arrived yet). Expected: nginx as a patch bump that
   moves tag and digest together; the JRE (`21-jre@sha256:…`) as a
@@ -68,6 +70,11 @@ Repo-settings toggles, verified 2026-09-06:
   don't read "the PR exists" as "it is three days old" — the registry shows
   when the tag was pushed. A PR that changes the tag's shape or drops the
   `-jre` suffix: close it and bump by hand.
+  `backend/Dockerfile` has two `FROM` lines of the same image,
+  `eclipse-temurin:21-jdk` (build) and `:21-jre` (runtime), and Dependabot
+  may treat them as one dependency: one PR for both, or for either. Read
+  the diff, not the title — which line moved (only `21-jre` changes what
+  runs), and that each kept its own suffix and got its own digest.
 - **A Maven wrapper bump is two lines, and Dependabot's version of it is
   not mergeable as is.** `backend/.mvn/wrapper/maven-wrapper.properties`
   carries `distributionSha256Sum` next to `distributionUrl` (since
