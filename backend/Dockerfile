@@ -1,13 +1,36 @@
 # ---- Build stage ----
-FROM maven:3.9-eclipse-temurin-21 AS build
+#
+# Maven comes from the wrapper (./mvnw), not from a maven image: the image is
+# then built by the same Maven version as CI's tests and a developer's
+# machine, and that version is the one line in .mvn/wrapper/ that says which
+# download to accept (distributionSha256Sum). The base is the plain JDK,
+# pinned by digest like the runtime base below, so Dependabot proposes its
+# updates too; tag and digest policy are the same as described there.
+FROM eclipse-temurin:21-jdk@sha256:0a3f329821dcadf54b2a3033a15e2e9f007069a9db43d7f51897e6b80e726b07 AS build
+
+# The wrapper script verifies the checksum of the .zip distribution, and
+# without unzip it silently switches to the .tar.gz — whose checksum is a
+# different one, so the build would stop at "Failed to validate Maven
+# distribution SHA-256". The JDK image has curl, tar and sha256sum, but no
+# unzip.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
+
+# Fetch and verify Maven in a layer of its own: it changes only when the
+# wrapper files do.
+COPY mvnw ./
+COPY .mvn .mvn
+RUN ./mvnw -B -v
 
 # Cache dependencies: resolve them from the pom before copying sources.
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
+RUN ./mvnw -B -q dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -DskipTests package
+RUN ./mvnw -B -DskipTests package
 
 # ---- Runtime stage ----
 #

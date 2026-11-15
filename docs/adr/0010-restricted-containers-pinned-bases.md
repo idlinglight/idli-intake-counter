@@ -44,8 +44,12 @@ other request: 8640 lines a day, per pod, saying nothing.
    major and flavour only (`21-jre`) — its full version tags are compound
    (`21.0.13_9-jre`), and an update should not depend on a bot parsing
    those. Dependabot proposes the moves. Channel moves — a Java major, the
-   nginx stable line — stay manual. Build-stage images keep floating: they
-   are not part of what runs.
+   nginx stable line — stay manual. The backend's build stage follows the
+   same rule: a digest-pinned JDK (`21-jdk`), with Maven from the wrapper,
+   whose download is checked against a committed hash — one Maven version
+   for tests and image, instead of a maven image whose compound tag
+   Dependabot once read as a JDK switch. The frontend's build image (node)
+   keeps floating within its major: it is not part of what runs.
 5. **No NetworkPolicy in the chart.** What must be allowed in (the ingress
    controller, the kubelet's probes) and out (the database) depends on the
    cluster's network plugin and ingress setup. A policy written without
@@ -60,9 +64,9 @@ other request: 8640 lines a day, per pod, saying nothing.
   pods waiting while the old ones keep serving — a rollout that does not
   finish, not an outage. `values.yaml` spells out the symptoms.
 - A base-image update is now a pull request with a name and a date, and the
-  image its merge builds is worth deploying for that reason alone. (Not
-  "identical otherwise": the build stages float, so the same build may also
-  pick up a newer build toolchain.)
+  image its merge builds is worth deploying for that reason alone. (For
+  the frontend not "identical otherwise": its node build image floats, so
+  the same build may also pick up a newer node.)
 - More bump PRs: an nginx stable patch every month or two, a Java patch each
   quarter, plus rebuilds in between.
 - Anything either process ever needs to write has to go to `/tmp` or get a

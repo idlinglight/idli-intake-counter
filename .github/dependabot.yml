@@ -58,7 +58,9 @@ updates:
   # OS-package fixes (the digest moves, the tag may not). With a
   # floating tag the same update rode along unseen with whatever build came
   # next — and nothing said that a build was worth deploying for it. The
-  # BUILD-stage images (maven, node) float within their channel: they are not
+  # backend's BUILD stage is pinned the same way (eclipse-temurin 21-jdk; its
+  # Maven comes from the wrapper, which the maven ecosystem above covers).
+  # The frontend's build image (node) floats within its major: it is not
   # part of what runs. Which channel is a decision made by hand; the ignore
   # rules below keep Dependabot from proposing a move.
   - package-ecosystem: docker
@@ -73,17 +75,12 @@ updates:
     cooldown:
       default-days: 3
     ignore:
-      # temurin majors = Java version decisions (ADR-worthy),
-      # kept in sync with pom.xml <java.version> and setup-java in CI
+      # temurin majors = Java version decisions (ADR-worthy), kept in sync
+      # between both FROM lines of backend/Dockerfile (21-jdk, 21-jre),
+      # pom.xml <java.version> and setup-java in CI
       - dependency-name: eclipse-temurin
         update-types:
           - version-update:semver-major
-      # maven build image: Dependabot parses the compound tag so a temurin
-      # suffix move (3.9-eclipse-temurin-21 → 3-eclipse-temurin-26) arrives
-      # as a non-major "3.9 → 3" bump — i.e. a silent JDK switch (PR #1,
-      # closed). JDK channel is deliberate and synced with pom + runtime
-      # image: ignore ALL updates here, bumps are manual.
-      - dependency-name: maven
       # node: stays on the chosen major, kept in sync with setup-node's
       # node-version in frontend.yml and package.json engines
       - dependency-name: node
