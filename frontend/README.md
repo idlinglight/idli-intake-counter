@@ -21,6 +21,6 @@ The production image serves the built bundle from nginx (`Dockerfile`,
 which frontend build is being served.
 
 What the image expects from whatever runs it: it listens on port **8080**, as
-the non-root user uid 101; `GET /healthz` answers `ok` and is the probe target
-(not logged); and it runs with a read-only root filesystem as long as `/tmp`
+the non-root user uid 101; `GET /healthz` is the probe target — it serves
+`index.html` (503 if it cannot) and is not logged; and it runs with a read-only root filesystem as long as `/tmp`
 is writable. Try it: `docker run --rm --read-only --tmpfs /tmp -p 8080:8080 <image>`.

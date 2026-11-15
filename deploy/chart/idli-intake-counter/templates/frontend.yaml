@@ -28,13 +28,13 @@ spec:
             {{- /* The port the image's nginx listens on (frontend/nginx.conf):
                  8080 since chart 0.6.0, because the image runs as a non-root
                  user. Probe and Service find it by name; the Service itself
-                 stays on 80. An image that still listens on 80 never becomes
-                 Ready under this chart — see values.yaml. */}}
+                 stays on 80. Chart and image have to agree on it — see
+                 values.yaml. */}}
             - name: http
               containerPort: 8080
-          {{- /* /healthz is answered by nginx itself and kept out of its
-               access log (frontend/nginx.conf), so probing writes no log
-               lines. */}}
+          {{- /* /healthz serves the SPA shell like "/" does (503 if it
+               cannot), but is kept out of nginx's access log
+               (frontend/nginx.conf), so probing writes no log lines. */}}
           readinessProbe:
             httpGet:
               path: /healthz

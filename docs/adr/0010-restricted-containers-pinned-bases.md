@@ -34,13 +34,18 @@ other request: 8640 lines a day, per pod, saying nothing.
    a uid onto any image instead — but then an image that needs a particular
    user would break at runtime, in a way the image alone no longer explains.
 3. **The frontend serves from the nginx project's unprivileged image**, on
-   port 8080, and answers `/healthz` itself, outside the access log. The
+   port 8080. The readiness probe asks for `/healthz`, which serves the SPA
+   shell like `/` does (503 if it cannot) but stays out of the access log:
+   "Ready" keeps meaning "can serve the app". The
    chart's container port and probe path are fixed, not values: for a given
    image there is exactly one right setting, so a knob could only be wrong.
-4. **Runtime base images are pinned by version and digest**; Dependabot
-   proposes patch releases and digest-only rebuilds. Channel moves — a Java
-   major, the nginx stable line — stay manual. Build-stage images keep
-   floating: they are not part of what runs.
+4. **Runtime base images are pinned by digest**, next to a tag that names
+   the channel: nginx by its full version (`1.30.6-alpine-slim`), the JRE by
+   major and flavour only (`21-jre`) — its full version tags are compound
+   (`21.0.13_9-jre`), and an update should not depend on a bot parsing
+   those. Dependabot proposes the moves. Channel moves — a Java major, the
+   nginx stable line — stay manual. Build-stage images keep floating: they
+   are not part of what runs.
 5. **No NetworkPolicy in the chart.** What must be allowed in (the ingress
    controller, the kubelet's probes) and out (the database) depends on the
    cluster's network plugin and ingress setup. A policy written without
@@ -54,9 +59,10 @@ other request: 8640 lines a day, per pod, saying nothing.
   reachable on the port chart 0.5.x expects. Either mismatch leaves the new
   pods waiting while the old ones keep serving — a rollout that does not
   finish, not an outage. `values.yaml` spells out the symptoms.
-- A base-image update is now a pull request with a name and a date. Merging
-  it builds an image whose only difference is the base — which answers "is
-  this one worth deploying" by itself.
+- A base-image update is now a pull request with a name and a date, and the
+  image its merge builds is worth deploying for that reason alone. (Not
+  "identical otherwise": the build stages float, so the same build may also
+  pick up a newer build toolchain.)
 - More bump PRs: an nginx stable patch every month or two, a Java patch each
   quarter, plus rebuilds in between.
 - Anything either process ever needs to write has to go to `/tmp` or get a
@@ -65,7 +71,8 @@ other request: 8640 lines a day, per pod, saying nothing.
   Exceeding the size limit gets the pod evicted, which for the backend means
   a restart and every session gone (ADR-0005); the limit is three orders of
   magnitude above what is used.
-- `/healthz` is reachable through the ingress as well. It says `ok`.
+- `/healthz` is reachable through the ingress as well. It shows what `/`
+  shows.
 - The hardening bounds what a compromised container can do next. It does
   nothing about how one gets compromised, and nothing about what the app's
   own credentials — the database login — allow.

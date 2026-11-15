@@ -7,12 +7,13 @@
 #     ("image has non-numeric user"), with an older frontend image at "image
 #     will run as root".
 #   * the frontend container port is 8080 and its readiness probe asks for
-#     /healthz; a frontend image that still listens on 80 never becomes Ready.
+#     /healthz, which the frontend image answers without an access-log line.
 # The first images that fit are the ones built from the commit that introduced
-# chart 0.6.0. In the other direction the same holds: those images' frontend
-# does not become Ready under chart 0.5.x (which expects port 80). In both
-# cases the old pods keep serving while the new ones wait, so a mismatch shows
-# as a rollout that does not finish, not as an outage.
+# chart 0.6.0. The reverse does not work either: such a frontend image listens
+# on 8080 and never becomes Ready under chart 0.5.x, which asks on port 80
+# ("Readiness probe failed … connection refused"). In both cases the old pods
+# keep serving while the new ones wait, so a mismatch shows as a rollout that
+# does not finish, not as an outage.
 #
 backend:
   image:

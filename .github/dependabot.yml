@@ -52,9 +52,10 @@ updates:
           - patch
 
   # The two RUNTIME base images (eclipse-temurin, nginx/nginx-unprivileged)
-  # are pinned by version and digest in the Dockerfiles, so a base update
-  # arrives here as a PR: a new patch release, or a rebuild of the same
-  # version for OS-package fixes (the digest moves, the tag does not). With a
+  # are pinned by digest in the Dockerfiles (nginx next to its full version
+  # tag, the JRE next to its channel tag), so a base update arrives here as
+  # a PR: a new patch release, or a rebuild of the same version for
+  # OS-package fixes (the digest moves, the tag may not). With a
   # floating tag the same update rode along unseen with whatever build came
   # next — and nothing said that a build was worth deploying for it. The
   # BUILD-stage images (maven, node) float within their channel: they are not

@@ -23,6 +23,10 @@ permissions:
 
 env:
   CHART_DIR: deploy/chart/idli-intake-counter
+  # Without a version, setup-helm installs whatever Helm release is newest
+  # that minute. Bumping it is manual (.github/MAINTENANCE.md, "Tool versions
+  # in workflow inputs").
+  HELM_VERSION: v4.3.1
   # The chart refuses to render without a datasource (deliberate guard);
   # lint/template therefore inject sample values.
   DS_VALUES: backend.env=[{"name":"SPRING_DATASOURCE_URL","value":"jdbc:postgresql://db:5432/idli"},{"name":"IDLI_AUTH_PASSWORD_HASH","value":"placeholder"}]
@@ -36,12 +40,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # version: without it the action installs whatever Helm release is
-      # newest that minute. Keep both jobs on the same one; bumping it is
-      # manual (.github/MAINTENANCE.md, "Tool versions in workflow inputs").
       - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1
+          version: ${{ env.HELM_VERSION }}
       - run: helm lint "$CHART_DIR" --set-json "$DS_VALUES"
       - run: helm template smoke "$CHART_DIR" --set-json "$DS_VALUES" > /dev/null
       # The digest-pinned form of the image references is a template branch the
@@ -68,7 +69,7 @@ jobs:
           persist-credentials: false
       - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.1
+          version: ${{ env.HELM_VERSION }}
       - run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
       - run: |
           helm package "$CHART_DIR" -d /tmp/chart-pkg
