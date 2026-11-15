@@ -34,8 +34,9 @@ Repo-settings toggles, verified 2026-09-06:
   and bump straight to latest, i.e. they systematically break the 3-day
   guard even when no bump to latest is needed. Keep them off.
 - **Docker base images never get alerts** (not in the dependency graph).
-  The two runtime bases are pinned by digest since 2026-11-15 (ADR-0010),
-  so their updates come as version-update PRs instead, on the Friday run.
+  The two runtime bases and the backend's build base (`21-jdk`) are pinned
+  by digest since 2026-11-15 (ADR-0010), so their updates come as
+  version-update PRs instead, on the Friday run.
   For a critical nginx/temurin advisory don't wait for that — bump by hand:
   the index digest from `docker buildx imagetools inspect <image>:<tag>`
   (top-level "Digest:"), plus the new tag for nginx.
@@ -52,8 +53,13 @@ Repo-settings toggles, verified 2026-09-06:
   deploying for its own sake.** npm dev-dependency rounds mostly change what
   CI runs, not what is served; a new nginx or JRE changes what runs in the
   cluster. The merge builds exactly one image, backend or frontend. Its base
-  is the intended difference, not necessarily the only one: the build-stage
-  images float, so the same build may pick up a newer maven/JDK or node.
+  is the intended difference, not necessarily the only one for the
+  frontend: its build image (`node:26-alpine`) floats, so the same build may
+  pick up a newer node. The backend's build JDK is pinned and its Maven
+  comes from the wrapper, so a backend base bump changes nothing else that
+  matters (the build stage's `unzip` comes unpinned from the Ubuntu
+  archive; it only unpacks Maven). A bump of `21-jdk` alone changes what
+  compiles the jar, not what runs.
 - **Pinned base images: what the PRs look like is not yet seen**
   (2026-11-15, nothing arrived yet). Expected: nginx as a patch bump that
   moves tag and digest together; the JRE (`21-jre@sha256:…`) as a
@@ -64,12 +70,17 @@ Repo-settings toggles, verified 2026-09-06:
   don't read "the PR exists" as "it is three days old" — the registry shows
   when the tag was pushed. A PR that changes the tag's shape or drops the
   `-jre` suffix: close it and bump by hand.
+  `backend/Dockerfile` has two `FROM` lines of the same image,
+  `eclipse-temurin:21-jdk` (build) and `:21-jre` (runtime), and Dependabot
+  may treat them as one dependency: one PR for both, or for either. Read
+  the diff, not the title — which line moved (only `21-jre` changes what
+  runs), and that each kept its own suffix and got its own digest.
 - **A Maven wrapper bump is two lines, and Dependabot's version of it is
   not mergeable as is.** `backend/.mvn/wrapper/maven-wrapper.properties`
   carries `distributionSha256Sum` next to `distributionUrl` (since
   2026-11-15): `./mvnw` refuses a Maven download that does not match — in
-  CI's verify job and on a developer machine, the two places it runs (the
-  image build uses the maven image instead). To bump by hand:
+  CI's verify job, on a developer machine, and in the backend image build,
+  which uses the wrapper too. To bump by hand:
   - Maven Central publishes a `.sha512` for the zip, no `.sha256`. Download
     the zip, compare `shasum -a 512` with the published `.sha512` (the same
     file is on `downloads.apache.org/maven/`, a second host to compare
@@ -77,6 +88,10 @@ Repo-settings toggles, verified 2026-09-06:
   - `MAVEN_USER_HOME=$(mktemp -d) ./mvnw -v` proves it: a fresh download,
     validated. A wrong hash ends in "Failed to validate Maven distribution
     SHA-256".
+  - The same message with a correct hash means `unzip` is missing: the
+    wrapper script then downloads the `.tar.gz` instead of the `.zip`, and
+    the hash is the zip's. That is why `backend/Dockerfile` installs unzip
+    in its build stage.
   - Dependabot's own bump (PR #78, 2026-11-15, before the hash line
     existed) changed the URL and rewrote `mvnw.cmd` with CRLF line endings
     in the committed file — which `.gitattributes` (`*.cmd text eol=crlf`)
