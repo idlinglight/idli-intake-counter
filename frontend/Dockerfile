@@ -24,7 +24,7 @@ RUN npm run build
 # architecture's manifest — CI builds amd64 + arm64. To check or move it by
 # hand: `docker buildx imagetools inspect nginx/nginx-unprivileged:<tag>`,
 # top-level "Digest:" line. Channel policy: .github/dependabot.yml.
-FROM nginx/nginx-unprivileged:1.30.6-alpine-slim@sha256:931bec1e41a3a643f2672162405093fe04002dd20e41d04faf67d700b7556b49
+FROM nginx/nginx-unprivileged:1.30.7-alpine-slim@sha256:8432c57ac86f178741af2b89948bd9087cb9df1c415bc1ab4d23735c4f0e3e61
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Nothing else validates nginx.conf before a pod tries to start with it:
 # fail the image build instead.
