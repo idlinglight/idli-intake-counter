@@ -60,21 +60,43 @@ Repo-settings toggles, verified 2026-09-06:
   matters (the build stage's `unzip` comes unpinned from the Ubuntu
   archive; it only unpacks Maven). A bump of `21-jdk` alone changes what
   compiles the jar, not what runs.
-- **Pinned base images: what the PRs look like is not yet seen**
-  (2026-11-15, nothing arrived yet). Expected: nginx as a patch bump that
-  moves tag and digest together; the JRE (`21-jre@sha256:…`) as a
-  digest-only bump, whose title names two digests and no Java version —
-  `docker run --rm --entrypoint java eclipse-temurin@<digest> -version`
-  says which one it is. Also unverified: whether the 3-day cooldown applies
-  to a digest-only move at all (there is no release date to count from), so
-  don't read "the PR exists" as "it is three days old" — the registry shows
-  when the tag was pushed. A PR that changes the tag's shape or drops the
-  `-jre` suffix: close it and bump by hand.
-  `backend/Dockerfile` has two `FROM` lines of the same image,
-  `eclipse-temurin:21-jdk` (build) and `:21-jre` (runtime), and Dependabot
-  may treat them as one dependency: one PR for both, or for either. Read
-  the diff, not the title — which line moved (only `21-jre` changes what
-  runs), and that each kept its own suffix and got its own digest.
+- **Pinned base images: a digest-move PR says nothing about what moved.**
+  Its title names two short digests and no version ("Bump eclipse-temurin
+  from `0a3f329` to `db5cc63`"), also for nginx when the same tag was
+  rebuilt. First seen 2026-11-20 (PR #82, PR #83), in the week of a Java
+  and an nginx security release — and neither PR carried the fix:
+  - The Temurin PR moved both `FROM` lines of `backend/Dockerfile`
+    (`21-jdk` and `21-jre`, each to its own digest) in one PR titled after
+    the `21-jdk` digests. All Linux manifests in the old and new index were
+    identical; only the `windows/amd64` entries had been rebuilt. An index
+    digest moves when any platform in it does.
+  - The nginx PR was a rebuild of the same `1.30.6` tag. The fixed
+    `1.30.7` image was two days old and did not get proposed: the 3-day
+    cooldown does hold back a new tag. Whether it applies to a digest-only
+    move is still unverified (there is no release date to count from), so
+    don't read "the PR exists" as "it is three days old".
+  - The fixed Temurin build reached the tag platform by platform within
+    hours (amd64 first; the index digest changed twice in one evening
+    while arm64 still was the old manifest). A pin taken during such a
+    rollout is followed by another digest PR.
+
+  So for every such PR, look at what the digests are:
+  - `docker buildx imagetools inspect <image>@<digest> --format '{{json
+    .}}'` shows each platform's image config without pulling:
+    `JAVA_VERSION` / `NGINX_VERSION` in `.image["linux/arm64"].config.Env`,
+    and `created`.
+  - `docker buildx imagetools inspect --raw <image>@<digest>` lists the
+    per-platform manifest digests; compare old and new to see which
+    platforms changed at all.
+  - These calls count against Docker Hub's anonymous pull limit (a 429
+    after a few dozen). `https://hub.docker.com/v2/repositories/<repo>/tags/<tag>`
+    (`library/eclipse-temurin` for the official image) answers the same
+    for a tag: index digest, per-platform digests and push times.
+
+  If the PR is not the update that is wanted, bump by hand (see "Docker
+  base images never get alerts" above) and let Dependabot close its PR.
+  A PR that changes the tag's shape or drops the `-jre` suffix: close it
+  and bump by hand. Only the `21-jre` line changes what runs.
 - **A Maven wrapper bump is two lines, and Dependabot's version of it is
   not mergeable as is.** `backend/.mvn/wrapper/maven-wrapper.properties`
   carries `distributionSha256Sum` next to `distributionUrl` (since
