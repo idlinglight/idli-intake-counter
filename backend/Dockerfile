@@ -11,7 +11,7 @@
 # this stage runs once, natively on the machine that builds, instead of once
 # per target platform (the arm64 pass under emulation). Only the runtime
 # stage below is per platform.
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk@sha256:0a3f329821dcadf54b2a3033a15e2e9f007069a9db43d7f51897e6b80e726b07 AS build
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk@sha256:db5cc6341a1d7bc40cdb51e1f0d9824f3bb2cc8107d29da421dc4df7d11f05f1 AS build
 
 # The wrapper script verifies the checksum of the .zip distribution, and
 # without unzip it silently switches to the .tar.gz — whose checksum is a
@@ -59,7 +59,7 @@ RUN ./mvnw -B -DskipTests package
 # hand: `docker buildx imagetools inspect eclipse-temurin:21-jre`, top-level
 # "Digest:" line. Which Java a digest is: `docker run --rm --entrypoint java
 # eclipse-temurin@<digest> -version`.
-FROM eclipse-temurin:21-jre@sha256:18bb4a91a3dea3f03ee31d3755af34dfb40f904fc77ab56cdc2f092e32fff9c2
+FROM eclipse-temurin:21-jre@sha256:ca73b4d3961703d6d7830a4361f49ef0478f8f28b39defc07bb72f4cc7f834f6
 
 # A fixed uid/gid, and USER by number: Kubernetes' `runAsNonRoot` (set by the
 # chart) can only verify a numeric user — with `USER app` the kubelet refuses
