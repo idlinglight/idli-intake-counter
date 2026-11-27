@@ -98,7 +98,8 @@ Repo-settings toggles, verified 2026-09-06:
   A PR that changes the tag's shape or drops the `-jre` suffix: close it
   and bump by hand. Only the `21-jre` line changes what runs.
 - **A Maven wrapper bump is two lines, and Dependabot's version of it is
-  not mergeable as is.** `backend/.mvn/wrapper/maven-wrapper.properties`
+  not mergeable as is: it also rewrites `mvnw.cmd`.**
+  `backend/.mvn/wrapper/maven-wrapper.properties`
   carries `distributionSha256Sum` next to `distributionUrl` (since
   2026-11-15): `./mvnw` refuses a Maven download that does not match — in
   CI's verify job, on a developer machine, and in the backend image build,
@@ -114,14 +115,23 @@ Repo-settings toggles, verified 2026-09-06:
     wrapper script then downloads the `.tar.gz` instead of the `.zip`, and
     the hash is the zip's. That is why `backend/Dockerfile` installs unzip
     in its build stage.
-  - Dependabot's own bump (PR #78, 2026-11-15, before the hash line
-    existed) changed the URL and rewrote `mvnw.cmd` with CRLF line endings
-    in the committed file — which `.gitattributes` (`*.cmd text eol=crlf`)
-    then shows as modified forever, as after PR #51 (repaired in PR #54).
-    Not yet seen: what it does with the hash line. If it keeps the old
-    hash, verify fails loudly; if it drops the line, the PR is green and
-    the check is gone — read the diff. Either way, redo the bump by hand
-    and let Dependabot close its PR.
+  - Dependabot's own bump rewrites `mvnw.cmd` with CRLF line endings in
+    the committed file, every time so far (PR #51, PR #78, PR #88). The
+    content is otherwise the same, but `backend/.gitattributes` (`*.cmd
+    text eol=crlf`) then shows the file as modified forever (repaired once
+    in PR #54). The PR is green all the same, so read the diff: 189 changed
+    lines in `mvnw.cmd` that `git diff --ignore-cr-at-eol` reduces to none.
+  - With the hash line in place (PR #88, 2026-11-27, Maven 3.10.1 →
+    3.10.2) Dependabot changed the URL and the hash together, and the hash
+    was right. One data point: still check it as above, and still read the
+    diff for a dropped line (the PR would be green and the check gone).
+  - Repair on the Dependabot branch instead of redoing the bump: `git
+    checkout origin/main -- backend/mvnw.cmd`, commit, push. The squash
+    merge then touches only the properties file (and whatever else the
+    group bumped). Don't comment `@dependabot rebase` or `recreate`
+    afterwards: it would drop the commit. PR CI does not build the image,
+    and the image build downloads Maven through the wrapper too, so add
+    the `build-image/` pretest from the first trap.
 - **springdoc majors track Spring Boot majors** — a springdoc major PR only
   makes sense together with the matching Boot line.
 - **Boot minors/majors can relocate classes/packages** (seen live: 4.1 moved
